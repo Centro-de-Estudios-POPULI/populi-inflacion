@@ -1,0 +1,42 @@
+name: "Actualizar datos de inflación"
+
+on:
+  schedule:
+    # IPC se publica ~día 5 de cada mes. Correr día 3, 5, 7, 10 para captar la actualización.
+    - cron: "0 15 3,5,7,10 * *"   # 11:00 BOT
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar scraper
+        run: python scripts/scrape_inflacion.py
+
+      - name: Commit y push si hay datos nuevos
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/*.json
+          if git diff --cached --quiet; then
+            echo "Sin datos nuevos."
+          else
+            git commit -m "datos: IPC $(date -u +%Y-%m-%d)"
+            git push
+          fi
