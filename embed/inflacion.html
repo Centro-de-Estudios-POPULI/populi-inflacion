@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inflación en Bolivia · Populi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --populi:#8B1A1A; --populi-dark:#6B0300; --populi-light:#C00000; --populi-gold:#D4A017;
+      --cream:#F5EFE0; --brown:#5C3D1E; --brown-dark:#3D2B1F;
+      --navy:#0D1B2A; --navy-light:#1A2940; --slate:#475569; --slate-light:#64748B;
+      --warm-white:#FAF8F3; --light-gray:#F1EDE5; --border:#E2DDD3; --dark-border:#2A3A50;
+      --bg:var(--warm-white); --card:#FFFFFF; --text:var(--brown-dark); --muted:var(--slate-light);
+      --ct-mensual:#0A9396; --ct-acumulada:#D97706; --ct-interanual:#C71E1D; --ct-meta:#6366F1;
+      --ct-general:#C71E1D; --ct-nucleo:#0A9396; --ct-alimentos:#D97706; --ct-energia:#6366F1;
+      --radius:12px;
+    }
+    [data-theme="dark"] {
+      --bg:#080808; --card:#141414; --text:#E2E8F0; --muted:#64748B;
+      --border:#2A3A50; --light-gray:#1A1A1A; --cream:#1A2940;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
+    .wrap{max-width:1200px;margin:0 auto;padding:20px 16px}
+
+    /* ── Header ──────────────────────────────────── */
+    .sec-hd{margin-bottom:16px}
+    .sec-title{font-family:'Playfair Display',Georgia,serif;font-size:1.55rem;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:10px;line-height:1.15}
+    [data-theme="dark"] .sec-title{color:#fff}
+    .accent-bar{width:4px;height:26px;background:var(--ct-interanual);border-radius:2px;flex-shrink:0}
+    .sec-sub{font-size:.78rem;color:var(--muted);padding-left:14px;margin-top:2px}
+    [data-theme="dark"] .sec-sub{color:rgba(255,255,255,.4)}
+
+    /* ── KPIs ────────────────────────────────────── */
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+    @media(max-width:700px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+    .kpi{background:var(--warm-white);border:1px solid var(--border);border-radius:10px;padding:12px 14px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+    [data-theme="dark"] .kpi{background:#141414;border-color:var(--dark-border)}
+    .kpi:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.08)}
+    .kpi::after{content:'';position:absolute;top:0;left:0;width:100%;height:3px}
+    .kpi[data-s="m"]::after{background:var(--ct-mensual)}
+    .kpi[data-s="a"]::after{background:var(--ct-acumulada)}
+    .kpi[data-s="t"]::after{background:var(--ct-interanual)}
+    .kpi[data-s="i"]::after{background:var(--ct-meta)}
+    .kpi-lbl{font-size:.62rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px}
+    [data-theme="dark"] .kpi-lbl{color:rgba(255,255,255,.4)}
+    .kpi-val{font-family:'JetBrains Mono',monospace;font-size:1.25rem;font-weight:700}
+    .kpi-d{display:inline-flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:5px;margin-top:5px}
+    .kpi-d.up{background:rgba(199,30,29,.08);color:#C71E1D}
+    .kpi-d.down{background:rgba(5,150,105,.08);color:#059669}
+    .kpi-d.flat{background:rgba(100,116,139,.08);color:#64748B}
+    [data-theme="dark"] .kpi-d.up{background:rgba(199,30,29,.15)}
+    [data-theme="dark"] .kpi-d.down{background:rgba(5,150,105,.15)}
+
+    /* ── Tabs ────────────────────────────────────── */
+    .tab-row{display:flex;gap:6px;margin-bottom:12px}
+    .tab-btn{padding:6px 16px;border:1.5px solid var(--border);border-radius:8px;background:transparent;cursor:pointer;font-family:'Inter',sans-serif;font-size:.7rem;font-weight:600;color:var(--muted);transition:all .2s}
+    [data-theme="dark"] .tab-btn{border-color:var(--dark-border);color:#94A3B8}
+    .tab-btn.active{background:var(--populi);border-color:var(--populi);color:#fff}
+    [data-theme="dark"] .tab-btn.active{background:var(--populi-light);border-color:var(--populi-light)}
+
+    /* ── Main Grid ───────────────────────────────── */
+    .main-grid{display:grid;grid-template-columns:3fr 2fr;grid-template-rows:540px;gap:16px}
+    @media(max-width:900px){.main-grid{grid-template-columns:1fr;grid-template-rows:480px auto}}
+    @media(min-width:1100px){.main-grid{grid-template-rows:580px}}
+
+    .chart-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;height:100%;overflow:hidden}
+    [data-theme="dark"] .chart-card{background:#141414;border-color:var(--dark-border)}
+    .chart-ctrl{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+    .tog-grp{display:flex;gap:6px;flex-wrap:wrap}
+    .pill{display:flex;align-items:center;gap:5px;padding:4px 12px;border:1.5px solid;border-radius:8px;background:transparent;cursor:pointer;font-family:'Inter',sans-serif;font-size:.68rem;font-weight:600;transition:all .2s}
+    .pill:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+    .lp{width:16px;height:0;border-top:2.5px solid;border-radius:1px}
+    .lp.dashed{border-top-style:dashed}
+    .rng-grp{display:flex;gap:4px}
+    .rng{padding:4px 10px;border:1.5px solid var(--border);border-radius:7px;background:transparent;cursor:pointer;font-family:'Inter',sans-serif;font-size:.65rem;font-weight:600;color:var(--muted);transition:all .2s}
+    [data-theme="dark"] .rng{border-color:var(--dark-border);color:#94A3B8}
+    .rng:hover,.rng.active{border-color:var(--populi);color:var(--populi)}
+    [data-theme="dark"] .rng:hover,[data-theme="dark"] .rng.active{border-color:var(--populi-light);color:var(--populi-light)}
+    .chart-area{flex:1;min-height:0}
+    .chart-src{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:0 2px}
+    .chart-src-t{font-size:.58rem;color:var(--muted);opacity:.6}
+    .chart-src-t a{color:var(--populi);font-weight:600;text-decoration:none}
+    .chart-src-t a:hover{text-decoration:underline}
+    .wm{height:15px;width:auto;opacity:.18}
+    [data-theme="dark"] .wm{opacity:.10}
+
+    /* ── Panel ───────────────────────────────────── */
+    .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;height:100%}
+    [data-theme="dark"] .panel{background:#141414;border-color:var(--dark-border)}
+    .panel-hd{background:var(--navy);padding:8px 14px;display:flex;align-items:center;justify-content:space-between}
+    [data-theme="dark"] .panel-hd{background:var(--navy-light)}
+    .panel-hd-t{font-size:.56rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.8)}
+    .panel-hd-d{font-family:'JetBrains Mono',monospace;font-size:.56rem;font-weight:600;color:var(--populi-light);background:rgba(199,30,29,.15);padding:2px 8px;border-radius:5px}
+    .panel-body{padding:14px;flex:1;overflow-y:auto}
+    .pb{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+    [data-theme="dark"] .pb{border-color:var(--dark-border)}
+    .pb:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+    .pb-lbl{display:inline-flex;align-items:center;gap:4px;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;padding:2px 9px 2px 6px;border-radius:4px;border-left:3px solid}
+    .pb-val{font-family:'JetBrains Mono',monospace;font-size:.92rem;font-weight:700;margin-bottom:3px}
+    .pb-desc{font-size:.66rem;line-height:1.55;color:var(--slate-light)}
+    [data-theme="dark"] .pb-desc{color:rgba(255,255,255,.45)}
+    .pb-desc strong{color:var(--navy)}
+    [data-theme="dark"] .pb-desc strong{color:#E2E8F0}
+    .dt{font-family:'JetBrains Mono',monospace;font-weight:600;padding:1px 5px;border-radius:4px;font-size:.82em;white-space:nowrap}
+    .dt-r{background:rgba(199,30,29,.08);color:#C71E1D}
+    .dt-t{background:rgba(10,147,150,.08);color:#0A9396}
+    .dt-a{background:rgba(217,119,6,.08);color:#D97706}
+    .dt-i{background:rgba(99,102,241,.08);color:#6366F1}
+    .ctx{background:var(--cream);border-radius:6px;padding:8px 10px;border-left:3px solid var(--populi);margin-top:6px}
+    [data-theme="dark"] .ctx{background:var(--navy-light)}
+    .ctx p{font-size:.66rem;line-height:1.55;color:var(--slate-light)}
+    [data-theme="dark"] .ctx p{color:#94A3B8}
+    .ctx p strong{color:var(--navy)}
+    [data-theme="dark"] .ctx p strong{color:#E2E8F0}
+
+    .panel-ft{padding:10px 14px;border-top:1px solid var(--border)}
+    [data-theme="dark"] .panel-ft{border-color:var(--dark-border)}
+    .amp{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:8px 0;border-radius:8px;font-family:'Inter',sans-serif;font-size:.66rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--populi);background:rgba(139,26,26,.06);border:1.5px solid rgba(139,26,26,.15);transition:all .2s;text-decoration:none;cursor:pointer}
+    [data-theme="dark"] .amp{background:rgba(192,0,0,.08);border-color:rgba(192,0,0,.2);color:var(--populi-light)}
+    .amp:hover{background:rgba(139,26,26,.12);border-color:rgba(139,26,26,.3);transform:translateY(-1px);box-shadow:0 2px 8px rgba(139,26,26,.1);text-decoration:none}
+    .amp svg{width:13px;height:13px}
+
+    /* ── Edu Boxes ───────────────────────────────── */
+    .edu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:16px}
+    .edu{background:var(--cream);border-radius:8px;padding:10px 12px;border-left:3px solid var(--populi);cursor:pointer;transition:all .2s}
+    [data-theme="dark"] .edu{background:var(--navy-light)}
+    .edu:hover{transform:translateY(-1px)}
+    .edu-tog{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .edu-t{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--populi)}
+    [data-theme="dark"] .edu-t{color:var(--populi-light)}
+    .edu-arr{font-size:.6rem;color:var(--muted);transition:transform .2s}
+    .edu.open .edu-arr{transform:rotate(180deg)}
+    .edu-c{display:none;margin-top:8px}
+    .edu.open .edu-c{display:block}
+    .edu-c p{font-size:.66rem;line-height:1.6;color:var(--slate-light);margin-bottom:6px}
+    .edu-c p:last-child{margin-bottom:0}
+    [data-theme="dark"] .edu-c p{color:#94A3B8}
+    .edu-c p strong{color:var(--navy)}
+    [data-theme="dark"] .edu-c p strong{color:#E2E8F0}
+    .hl{display:inline;font-family:'JetBrains Mono',monospace;font-size:.92em;font-weight:600;padding:0 4px;border-radius:3px}
+
+    .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:400px;color:var(--muted)}
+    .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--populi);border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="loading" id="loader"><div class="spinner"></div><span style="font-size:.75rem">Cargando datos de inflación...</span></div>
+</div>
+<script>
+(function(){
+  const BASE_URL = 'https://centro-de-estudios-populi.github.io/populi-inflacion/data/';
+  const DASH_URL = 'https://centro-de-estudios-populi.github.io/populi-inflacion/';
+  const META_PGE = 14;
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('theme')==='dark') document.documentElement.dataset.theme='dark';
+  window.addEventListener('message', e => { if(e.data&&e.data.theme) document.documentElement.dataset.theme=e.data.theme; });
+
+  function dk(){return document.documentElement.dataset.theme==='dark'}
+  function fv(v){return (v>=0?'+':'')+v.toFixed(2)+'%'}
+  function fdate(f){
+    const [y,m]=f.split('-');
+    const months=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    return months[+m-1]+' '+y;
+  }
+
+  function calcYoY(serie){
+    return serie.map((p,i)=>{
+      if(i<12) return {fecha:p.fecha, valor:null};
+      const prev=serie[i-12];
+      return {fecha:p.fecha, valor:((p.valor/prev.valor)-1)*100};
+    }).filter(p=>p.valor!==null);
+  }
+
+  async function init(){
+    let gen, desc, meta;
+    try {
+      [gen, desc, meta] = await Promise.all([
+        fetch(BASE_URL+'ipc_general.json').then(r=>r.json()),
+        fetch(BASE_URL+'ipc_descomposicion.json').then(r=>r.json()),
+        fetch(BASE_URL+'metadata.json').then(r=>r.json()),
+      ]);
+    } catch(e){
+      document.getElementById('loader').innerHTML='<span style="color:var(--ct-interanual);font-size:.75rem">Error al cargar datos.</span>';
+      return;
+    }
+
+    const N = gen.var_interanual.length;
+    const last = i => gen[i][N-1];
+    const prev = i => gen[i][N-2];
+    const hoy = last('var_interanual');
+    const hoyM = last('var_mensual');
+    const hoyA = last('var_acumulada');
+    const hoyIdx = last('indice');
+
+    const descYoY = {
+      general: calcYoY(desc.general),
+      nucleo: calcYoY(desc.nucleo),
+      alimentos: calcYoY(desc.alimentos),
+      energia: calcYoY(desc.energia),
+    };
+
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <div class="sec-hd">
+        <h2 class="sec-title"><span class="accent-bar"></span>Inflación en Bolivia</h2>
+        <p class="sec-sub">Índice de Precios al Consumidor (IPC) · Base ${meta.base} = 100 · ${meta.cobertura}</p>
+      </div>
+      <div class="kpi-grid" id="kpis"></div>
+      <div class="tab-row" id="tabs"></div>
+      <div class="main-grid">
+        <div class="chart-card">
+          <div class="chart-ctrl">
+            <div class="tog-grp" id="toggles"></div>
+            <div class="rng-grp" id="ranges"></div>
+          </div>
+          <div class="chart-area" id="chart"></div>
+          <div class="chart-src">
+            <span class="chart-src-t">Fuente: <a href="${meta.url_nacional}" target="_blank">INE Bolivia</a> · Elaboración: <a href="https://populi.org.bo" target="_blank">Centro de Estudios POPULI</a> · Datos al: ${fdate(hoy.fecha)}</span>
+            <svg viewBox="0 0 310 130" xmlns="http://www.w3.org/2000/svg" class="wm"><text x="6" y="112" font-family="'Playfair Display',Georgia,serif" font-size="145" font-weight="700" fill="${dk()?'#C00000':'#8B1A1A'}">P</text><text x="92" y="87" font-family="'Playfair Display',Georgia,serif" font-size="55" font-weight="400" font-style="italic" letter-spacing="1" fill="${dk()?'#F5EFE0':'#3D2B1F'}">opuli</text></svg>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-hd"><span class="panel-hd-t">Lectura del indicador</span><span class="panel-hd-d" id="p-date"></span></div>
+          <div class="panel-body" id="p-body"></div>
+          <div class="panel-ft">
+            <a href="${DASH_URL}" target="_blank" class="amp"><span>Ampliar análisis</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+          </div>
+        </div>
+      </div>
+      <div class="edu-grid" id="edu"></div>
+    `;
+
+    // ── KPIs ─────────────────────────────────────
+    const kpis = [
+      {s:'t',lbl:'Interanual',val:hoy.valor,prv:prev('var_interanual').valor,color:'var(--ct-interanual)'},
+      {s:'m',lbl:'Mensual',val:hoyM.valor,prv:prev('var_mensual').valor,color:'var(--ct-mensual)'},
+      {s:'a',lbl:'Acumulada '+hoy.fecha.split('-')[0],val:hoyA.valor,prv:prev('var_acumulada').valor,color:'var(--ct-acumulada)'},
+      {s:'i',lbl:'Índice IPC',val:hoyIdx.valor,prv:prev('indice').valor,color:'var(--ct-meta)',isIdx:true},
+    ];
+    document.getElementById('kpis').innerHTML = kpis.map(k=>{
+      const d=k.val-k.prv;
+      const cls=Math.abs(d)<0.01?'flat':(d>0?'up':'down');
+      const arrow=cls==='up'?'&#9650;':cls==='down'?'&#9660;':'&#8212;';
+      return `<div class="kpi" data-s="${k.s}">
+        <div class="kpi-lbl">${k.lbl}</div>
+        <div class="kpi-val" style="color:${k.color}">${k.isIdx?k.val.toFixed(1):fv(k.val)}</div>
+        <div class="kpi-d ${cls}">${arrow} ${k.isIdx?Math.abs(d).toFixed(1)+' pts':Math.abs(d).toFixed(2)+' pp'}</div>
+      </div>`;
+    }).join('');
+
+    // ── Tabs ─────────────────────────────────────
+    const TABS = [
+      {key:'var', label:'Variación IPC'},
+      {key:'desc', label:'Descomposición'},
+    ];
+    let activeTab = 'var';
+
+    const SERIES_VAR = [
+      {key:'var_mensual',label:'Mensual',color:'#0A9396',dashed:true},
+      {key:'var_acumulada',label:'Acumulada',color:'#D97706',dashed:false},
+      {key:'var_interanual',label:'A 12 meses',color:'#C71E1D',dashed:false},
+    ];
+    const SERIES_DESC = [
+      {key:'general',label:'General',color:'#C71E1D',dashed:false},
+      {key:'nucleo',label:`Núcleo (${desc.meta.nucleo.ponderacion_total}%)`,color:'#0A9396',dashed:false},
+      {key:'alimentos',label:`Alimentos (${desc.meta.alimentos.ponderacion_total}%)`,color:'#D97706',dashed:false},
+      {key:'energia',label:`Energía (${desc.meta.energia.ponderacion_total}%)`,color:'#6366F1',dashed:true},
+    ];
+    let activeVar = new Set(SERIES_VAR.map(s=>s.key));
+    let activeDesc = new Set(SERIES_DESC.map(s=>s.key));
+
+    function curSeries(){return activeTab==='var'?SERIES_VAR:SERIES_DESC}
+    function curActive(){return activeTab==='var'?activeVar:activeDesc}
+
+    const tabsEl = document.getElementById('tabs');
+    TABS.forEach(t=>{
+      const btn=document.createElement('button');
+      btn.className='tab-btn'+(t.key===activeTab?' active':'');
+      btn.textContent=t.label;
+      btn.addEventListener('click',()=>{
+        activeTab=t.key;
+        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        renderToggles();
+        buildChart();
+        updatePanel(curIdx);
+      });
+      tabsEl.appendChild(btn);
+    });
+
+    // ── Toggles ─────────────────────────────────
+    function renderToggles(){
+      const el=document.getElementById('toggles');
+      el.innerHTML='';
+      curSeries().forEach(s=>{
+        const btn=document.createElement('button');
+        btn.className='pill';
+        btn.dataset.key=s.key;
+        btn.innerHTML=`<span class="lp${s.dashed?' dashed':''}" style="border-color:#fff"></span>${s.label}`;
+        btn.addEventListener('click',()=>{
+          const act=curActive();
+          if(act.has(s.key)){if(act.size===1)return;act.delete(s.key)}else{act.add(s.key)}
+          syncPills();buildChart();
+        });
+        el.appendChild(btn);
+      });
+      syncPills();
+    }
+    function syncPills(){
+      const act=curActive();
+      document.querySelectorAll('.pill').forEach(btn=>{
+        const s=curSeries().find(x=>x.key===btn.dataset.key);
+        if(!s)return;
+        const on=act.has(s.key);
+        btn.style.backgroundColor=on?s.color:'transparent';
+        btn.style.color=on?'#fff':s.color;
+        btn.style.borderColor=s.color;
+        const lp=btn.querySelector('.lp');
+        if(lp)lp.style.borderColor=on?'#fff':s.color;
+      });
+    }
+    renderToggles();
+
+    // ── Range Buttons ───────────────────────────
+    const RANGES=[{label:'2A',months:24},{label:'5A',months:60},{label:'Todo',months:0}];
+    let curRange=0;
+    const rngEl=document.getElementById('ranges');
+    RANGES.forEach((r,i)=>{
+      const btn=document.createElement('button');
+      btn.className='rng'+(i===RANGES.length-1?' active':'');
+      btn.textContent=r.label;
+      btn.addEventListener('click',()=>{
+        curRange=r.months;
+        document.querySelectorAll('.rng').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        buildChart();
+      });
+      rngEl.appendChild(btn);
+    });
+
+    // ── Panel ───────────────────────────────────
+    let curIdx = N-1;
+    function updatePanel(idx){
+      if(activeTab==='var') updatePanelVar(idx);
+      else updatePanelDesc(idx);
+    }
+
+    function updatePanelVar(idx){
+      if(idx<0||idx>=N) return;
+      curIdx=idx;
+      const m=gen.var_mensual[idx], a=gen.var_acumulada[idx], t=gen.var_interanual[idx];
+      const yr=t.fecha.split('-')[0];
+      const prevLbl=idx>0?fdate(gen.var_mensual[idx-1].fecha):'—';
+      const prev12=idx>=12?fdate(gen.var_interanual[idx-12].fecha):'—';
+
+      document.getElementById('p-date').textContent=fdate(t.fecha);
+
+      let analysis;
+      if(t.valor>15)
+        analysis=`Con una inflación interanual de <span class="dt dt-r">${fv(t.valor)}</span>, Bolivia atraviesa un periodo de <strong>fuerte erosión del poder adquisitivo</strong>. Los precios son significativamente más altos que hace un año, afectando especialmente a los hogares de menores ingresos. Un incremento de esta magnitud refleja presiones inflacionarias sostenidas que se distribuyen a lo largo de toda la cadena productiva y comercial.`;
+      else if(t.valor>8)
+        analysis=`La inflación interanual de <span class="dt dt-r">${fv(t.valor)}</span> se sitúa en <strong>niveles elevados</strong>, muy por encima del promedio histórico boliviano. Estas presiones sostenidas sobre los precios impactan tanto al consumidor final como a las expectativas del sector privado sobre la efectividad de la política monetaria y fiscal.`;
+      else if(t.valor>4)
+        analysis=`Con <span class="dt dt-r">${fv(t.valor)}</span> interanual, la inflación se encuentra <strong>por encima del rango habitual</strong> para la economía boliviana. Expectativas de inflación crecientes indican una menor confianza en el éxito futuro de las políticas de estabilización.`;
+      else if(t.valor>0)
+        analysis=`La inflación interanual de <span class="dt dt-r">${fv(t.valor)}</span> se mantiene dentro de <strong>niveles controlados</strong>, en línea con el comportamiento histórico. Expectativas de inflación decrecientes indican mayor confianza en la política monetaria y fiscal.`;
+      else
+        analysis=`Se registra <strong>deflación interanual</strong> (<span class="dt dt-r">${fv(t.valor)}</span>): el nivel general de precios es inferior al de hace 12 meses. Puede reflejar caída en demanda agregada o ajustes en precios regulados.`;
+
+      document.getElementById('p-body').innerHTML=`
+        <div class="pb">
+          <div class="pb-lbl" style="color:#0A9396;background:rgba(10,147,150,.08);border-left-color:#0A9396">Inflación mensual</div>
+          <div class="pb-val" style="color:#0A9396">${fv(m.valor)}</div>
+          <p class="pb-desc">En <strong>${fdate(m.fecha)}</strong>, los precios variaron <span class="dt dt-t">${fv(m.valor)}</span> respecto a <strong>${prevLbl}</strong>. Variación porcentual del nivel general de precios entre dos meses consecutivos, basada en el IPC.</p>
+        </div>
+        <div class="pb">
+          <div class="pb-lbl" style="color:#D97706;background:rgba(217,119,6,.08);border-left-color:#D97706">Acumulada ${yr}</div>
+          <div class="pb-val" style="color:#D97706">${fv(a.valor)}</div>
+          <p class="pb-desc">Desde enero de <strong>${yr}</strong>, los precios acumulan <span class="dt dt-a">${fv(a.valor)}</span>. Efecto conjunto de las variaciones mensuales desde el inicio del año calendario.</p>
+        </div>
+        <div class="pb">
+          <div class="pb-lbl" style="color:#C71E1D;background:rgba(199,30,29,.08);border-left-color:#C71E1D">Interanual · 12 meses</div>
+          <div class="pb-val" style="color:#C71E1D">${fv(t.valor)}</div>
+          <p class="pb-desc">Comparado con <strong>${prev12}</strong>, el nivel de precios varió <span class="dt dt-r">${fv(t.valor)}</span>. Compara el IPC actual con el del mismo mes del año anterior.</p>
+        </div>
+        <div class="ctx"><p>${analysis}</p></div>`;
+    }
+
+    function updatePanelDesc(idx){
+      const yoyLen=descYoY.general.length;
+      const offset=N-yoyLen;
+      const dIdx=idx-offset;
+      if(dIdx<0||dIdx>=yoyLen){document.getElementById('p-body').innerHTML='<p class="pb-desc">Sin datos de descomposición para este periodo.</p>';return}
+      curIdx=idx;
+      const g=descYoY.general[dIdx], nu=descYoY.nucleo[dIdx], al=descYoY.alimentos[dIdx], en=descYoY.energia[dIdx];
+      document.getElementById('p-date').textContent=fdate(g.fecha);
+
+      const maxComp=[{n:'Alimentos',v:al.valor,c:'#D97706'},{n:'Energía',v:en.valor,c:'#6366F1'},{n:'Núcleo',v:nu.valor,c:'#0A9396'}];
+      maxComp.sort((a,b)=>b.v-a.v);
+      const driver=maxComp[0];
+
+      let analysis;
+      if(al.valor>nu.valor*1.5)
+        analysis=`Los <strong>alimentos</strong> son el principal motor inflacionario con <span class="dt dt-a">${fv(al.valor)}</span> interanual, muy por encima de la inflación núcleo (<span class="dt dt-t">${fv(nu.valor)}</span>). La presión sobre alimentos tiene un impacto desproporcionado en hogares de menores ingresos, que destinan mayor proporción de su gasto a la canasta alimentaria.`;
+      else if(en.valor>nu.valor*1.5)
+        analysis=`La <strong>energía</strong> lidera las presiones inflacionarias con <span class="dt dt-i">${fv(en.valor)}</span> interanual. Esto se transmite gradualmente al resto de la economía a través de costos de transporte y producción, anticipando posibles incrementos futuros en la inflación núcleo.`;
+      else
+        analysis=`La inflación se distribuye de forma <strong>relativamente uniforme</strong> entre los componentes. El componente con mayor variación es <strong>${driver.n}</strong> (<span class="dt" style="background:${driver.c}15;color:${driver.c}">${fv(driver.v)}</span>), pero la diferencia entre categorías es moderada.`;
+
+      document.getElementById('p-body').innerHTML=`
+        <div class="pb">
+          <div class="pb-lbl" style="color:#C71E1D;background:rgba(199,30,29,.08);border-left-color:#C71E1D">IPC General</div>
+          <div class="pb-val" style="color:#C71E1D">${fv(g.valor)}</div>
+          <p class="pb-desc">Variación interanual del índice general de precios. Incluye los <strong>${desc.meta.general.productos} productos</strong> de la canasta IPC.</p>
+        </div>
+        <div class="pb">
+          <div class="pb-lbl" style="color:#0A9396;background:rgba(10,147,150,.08);border-left-color:#0A9396">Inflación Núcleo</div>
+          <div class="pb-val" style="color:#0A9396">${fv(nu.valor)}</div>
+          <p class="pb-desc"><strong>${desc.meta.nucleo.productos} productos</strong> (${desc.meta.nucleo.ponderacion_total}% de la canasta). Excluye alimentos y energía por su volatilidad, reflejando la tendencia de fondo de los precios.</p>
+        </div>
+        <div class="pb">
+          <div class="pb-lbl" style="color:#D97706;background:rgba(217,119,6,.08);border-left-color:#D97706">Alimentos</div>
+          <div class="pb-val" style="color:#D97706">${fv(al.valor)}</div>
+          <p class="pb-desc"><strong>${desc.meta.alimentos.productos} productos</strong> (${desc.meta.alimentos.ponderacion_total}%). Alimentos y bebidas, sensibles a factores estacionales y climáticos que generan variaciones significativas a lo largo del año.</p>
+        </div>
+        <div class="pb">
+          <div class="pb-lbl" style="color:#6366F1;background:rgba(99,102,241,.08);border-left-color:#6366F1">Energía</div>
+          <div class="pb-val" style="color:#6366F1">${fv(en.valor)}</div>
+          <p class="pb-desc"><strong>${desc.meta.energia.productos} productos</strong> (${desc.meta.energia.ponderacion_total}%). Combustibles, electricidad y gas, influenciados por mercados internacionales y regulaciones gubernamentales.</p>
+        </div>
+        <div class="ctx"><p>${analysis}</p></div>`;
+    }
+
+    // ── ECharts ─────────────────────────────────
+    let chart=null;
+    function buildChart(){
+      const container=document.getElementById('chart');
+      if(!chart)chart=echarts.init(container);
+      const d=dk();
+
+      if(activeTab==='var') buildVarChart(d);
+      else buildDescChart(d);
+    }
+
+    function buildVarChart(d){
+      const src=curRange>0?gen.var_interanual.slice(-curRange):gen.var_interanual;
+      const startIdx=curRange>0?N-curRange:0;
+      const dates=src.map(p=>p.fecha);
+      const series=[];const colors=[];
+
+      SERIES_VAR.forEach(s=>{
+        if(!activeVar.has(s.key))return;
+        colors.push(s.color);
+        const rawData=(curRange>0?gen[s.key].slice(-curRange):gen[s.key]).map(p=>p.valor);
+        const lastV=rawData[rawData.length-1];
+        series.push({
+          name:s.label,type:'line',data:rawData,symbol:'none',
+          lineStyle:{width:2.5,type:s.dashed?[6,4]:'solid'},
+          areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:s.color+'18'},{offset:1,color:s.color+'02'}])},
+          markPoint:{data:[{coord:[dates.length-1,lastV]}],symbol:'circle',symbolSize:8,itemStyle:{color:s.color,borderColor:d?'#141414':'#fff',borderWidth:2},label:{show:false}},
+          z:3
+        });
+      });
+
+      series.push({
+        name:'Meta PGE 2026 ('+META_PGE+'%)',type:'line',
+        data:dates.map(()=>META_PGE),symbol:'none',
+        lineStyle:{width:1.5,color:'#6366F1',type:[5,4]},
+        itemStyle:{color:'#6366F1'},z:1
+      });
+
+      setOption(dates,series,colors,d,startIdx,true);
+    }
+
+    function buildDescChart(d){
+      const yoyLen=descYoY.general.length;
+      const src=curRange>0?descYoY.general.slice(-curRange):descYoY.general;
+      const sliceLen=src.length;
+      const dates=src.map(p=>p.fecha);
+      const series=[];const colors=[];
+
+      SERIES_DESC.forEach(s=>{
+        if(!activeDesc.has(s.key))return;
+        colors.push(s.color);
+        const raw=curRange>0?descYoY[s.key].slice(-curRange):descYoY[s.key];
+        const vals=raw.map(p=>p.valor!=null?+p.valor.toFixed(2):null);
+        const lastV=vals.filter(v=>v!=null).pop();
+        const lastIdx=vals.lastIndexOf(lastV);
+        series.push({
+          name:s.label,type:'line',data:vals,symbol:'none',
+          lineStyle:{width:2.5,type:s.dashed?[6,4]:'solid'},
+          connectNulls:true,
+          markPoint:lastIdx>=0?{data:[{coord:[lastIdx,lastV]}],symbol:'circle',symbolSize:7,itemStyle:{color:s.color,borderColor:d?'#141414':'#fff',borderWidth:2},label:{show:false}}:undefined,
+          z:3
+        });
+      });
+
+      const offset=N-yoyLen;
+      setOption(dates,series,colors,d,curRange>0?N-curRange:offset,false);
+    }
+
+    function setOption(dates,series,colors,d,startIdx,showMeta){
+      chart.setOption({
+        color:colors,
+        backgroundColor:'transparent',
+        grid:{top:30,right:16,bottom:44,left:52},
+        tooltip:{
+          trigger:'axis',
+          backgroundColor:d?'#080808':'rgba(13,27,42,.96)',
+          borderColor:d?'#2A3A50':'#1A2940',
+          textStyle:{fontFamily:'Inter',fontSize:12,color:'#fff'},
+          padding:[12,16],
+          extraCssText:'border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.3);',
+          formatter:function(ps){
+            if(!ps.length)return'';
+            const idx=ps[0].dataIndex;
+            updatePanel(startIdx+idx);
+            let h=`<div style="font-weight:700;margin-bottom:6px;color:#E9D8A6;font-size:12px">${fdate(dates[idx])}</div>`;
+            ps.forEach(p=>{
+              if(p.value==null)return;
+              const isMeta=p.seriesName.includes('Meta');
+              h+=`<div style="display:flex;align-items:center;gap:8px;margin:3px 0">
+                <span style="width:8px;height:8px;border-radius:50%;background:${isMeta?'#6366F1':p.color};display:inline-block"></span>
+                <span style="flex:1;font-size:11px;color:rgba(255,255,255,.7)">${p.seriesName}</span>
+                <span style="font-family:'JetBrains Mono';font-weight:700;font-size:12px">${fv(p.value)}</span>
+              </div>`;
+            });
+            return h;
+          }
+        },
+        xAxis:{
+          type:'category',data:dates,
+          axisLine:{lineStyle:{color:d?'#2A3A50':'#E2DDD3'}},
+          axisTick:{show:false},
+          axisLabel:{
+            fontFamily:'Inter',fontSize:10,fontWeight:500,
+            color:d?'#64748B':'#94A3B8',
+            formatter:function(v,idx){
+              if(idx===0||idx===dates.length-1) return fdate(v);
+              if(idx>0){
+                const cm=v.split('-')[1], pm=dates[idx-1].split('-')[1];
+                if(cm!==pm){const[y,m]=v.split('-');return(['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][+m])+' '+y.slice(2)}
+              }
+              const step=Math.max(1,Math.round(dates.length/8));
+              if(idx%step===0){const[y,m]=v.split('-');return(['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][+m])+' '+y.slice(2)}
+              return'';
+            },
+            showMinLabel:true,showMaxLabel:true,
+          }
+        },
+        yAxis:{
+          type:'value',
+          splitLine:{lineStyle:{color:d?'#1E1E1E':'#F1F5F9',type:'dashed'}},
+          axisLine:{show:false},axisTick:{show:false},
+          axisLabel:{fontFamily:'JetBrains Mono',fontSize:11,color:d?'#64748B':'#94A3B8',
+            formatter:function(v){return(v>=0?'+':'')+v.toFixed(0)+'%'}
+          }
+        },
+        series:series
+      },true);
+    }
+
+    buildChart();
+    updatePanel(N-1);
+    window.addEventListener('resize',()=>chart&&chart.resize());
+    new MutationObserver(()=>{buildChart();updatePanel(curIdx)}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+    // ── Edu Boxes ───────────────────────────────
+    const eduData=[
+      {
+        title:'¿Qué es la inflación y por qué importa?',
+        content:`<p>La <strong>inflación</strong> es el aumento sostenido en el nivel general de precios de bienes y servicios en una economía. Cuando hay inflación, cada boliviano compra menos de lo que compraba antes — esto se llama <strong>pérdida de poder adquisitivo</strong>.</p>
+        <p>La inflación afecta desproporcionadamente a los <strong>hogares de menores ingresos</strong>, que destinan mayor proporción de su gasto a alimentos y necesidades básicas. El reto actual de Bolivia es <strong>reducir la inflación en un contexto de desaceleración económica</strong>: la corrección del déficit fiscal — imprescindible para la estabilidad de largo plazo — profundizará la desaceleración en el corto plazo, pero es condición necesaria para retomar un <strong>crecimiento económico sostenible</strong>.</p>`
+      },
+      {
+        title:'¿Qué mide cada indicador?',
+        content:`<p><strong>Inflación mensual:</strong> Variación porcentual del nivel general de precios entre dos meses consecutivos, basada en el Índice de Precios al Consumidor (IPC). Captura los movimientos de corto plazo.</p>
+        <p><strong>Inflación acumulada:</strong> Variación porcentual desde el inicio del año calendario hasta el mes de referencia. Refleja el efecto conjunto de las variaciones mensuales y permite medir el avance inflacionario en el año.</p>
+        <p><strong>Inflación a 12 meses (interanual):</strong> Compara el IPC actual con el del mismo mes del año anterior. Es el indicador más utilizado internacionalmente porque elimina efectos estacionales y muestra la tendencia real de los precios.</p>`
+      },
+      {
+        title:'¿Por qué suben los precios?',
+        content:`<p>Más allá de los movimientos en <strong>precios relativos</strong> — que un producto suba o baje respecto a otro —, una inflación alta y generalizada revela un problema más profundo: <strong>el dinero está perdiendo valor</strong>.</p>
+        <p>Cuando el Banco Central emite más dinero del que la economía necesita (por ejemplo, para financiar déficits fiscales), hay más bolivianos persiguiendo la misma cantidad de bienes. El resultado inevitable es que los precios suben. Esto es lo que los economistas llaman el <strong>origen monetario de la inflación</strong>: demasiado dinero persiguiendo pocos bienes.</p>
+        <p>En Bolivia, la caída de reservas internacionales ha debilitado el respaldo de la moneda, mientras que el crédito del BCB al sector público ha expandido la base monetaria. Estos <strong>desequilibrios macroeconómicos</strong> — no la escasez puntual de un producto — son la raíz de una inflación persistente. Por eso, para entender la inflación, es necesario mirar también los indicadores monetarios que la causan.</p>`
+      }
+    ];
+
+    document.getElementById('edu').innerHTML=eduData.map(e=>`
+      <div class="edu" onclick="this.classList.toggle('open')">
+        <div class="edu-tog"><span class="edu-t">${e.title}</span><span class="edu-arr">&#9660;</span></div>
+        <div class="edu-c">${e.content}</div>
+      </div>`).join('');
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
