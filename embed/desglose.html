@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Desglose de la Inflación · Populi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --populi:#8B1A1A;--populi-dark:#6B0300;--populi-light:#C00000;
+      --cream:#F5EFE0;--brown-dark:#3D2B1F;
+      --navy:#0D1B2A;--navy-light:#1A2940;--slate:#475569;--slate-light:#64748B;
+      --warm-white:#FAF8F3;--border:#E2DDD3;--dark-border:#2A3A50;
+      --bg:var(--warm-white);--card:#FFFFFF;--text:var(--brown-dark);--muted:var(--slate-light);
+      --ct-gen:#C71E1D;--ct-nuc:#0A9396;--ct-ali:#D97706;--ct-ene:#6366F1;
+      --radius:12px;
+    }
+    [data-theme="dark"]{--bg:#080808;--card:#141414;--text:#E2E8F0;--muted:#64748B;--border:#2A3A50;--cream:#1A2940}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
+    .wrap{max-width:1200px;margin:0 auto;padding:20px 16px}
+    .sec-title{font-family:'Playfair Display',Georgia,serif;font-size:1.55rem;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:10px;line-height:1.15;margin-bottom:2px}
+    [data-theme="dark"] .sec-title{color:#fff}
+    .accent-bar{width:4px;height:26px;background:var(--ct-gen);border-radius:2px;flex-shrink:0}
+    .sec-sub{font-size:.78rem;color:var(--muted);padding-left:14px;margin-bottom:16px}
+    [data-theme="dark"] .sec-sub{color:rgba(255,255,255,.4)}
+
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+    @media(max-width:700px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+    .kpi{background:var(--warm-white);border:1px solid var(--border);border-radius:10px;padding:12px 14px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+    [data-theme="dark"] .kpi{background:#141414;border-color:var(--dark-border)}
+    .kpi:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.08)}
+    .kpi::after{content:'';position:absolute;top:0;left:0;width:100%;height:3px}
+    .kpi[data-s="g"]::after{background:var(--ct-gen)}
+    .kpi[data-s="n"]::after{background:var(--ct-nuc)}
+    .kpi[data-s="a"]::after{background:var(--ct-ali)}
+    .kpi[data-s="e"]::after{background:var(--ct-ene)}
+    .kpi-lbl{font-size:.62rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px}
+    [data-theme="dark"] .kpi-lbl{color:rgba(255,255,255,.4)}
+    .kpi-val{font-family:'JetBrains Mono',monospace;font-size:1.25rem;font-weight:700}
+    .kpi-d{display:inline-flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:5px;margin-top:5px}
+    .kpi-d.up{background:rgba(199,30,29,.08);color:#C71E1D}
+    .kpi-d.down{background:rgba(5,150,105,.08);color:#059669}
+    .kpi-d.flat{background:rgba(100,116,139,.08);color:#64748B}
+    [data-theme="dark"] .kpi-d.up{background:rgba(199,30,29,.15)}
+    [data-theme="dark"] .kpi-d.down{background:rgba(5,150,105,.15)}
+
+    .main-grid{display:grid;grid-template-columns:3fr 2fr;grid-template-rows:540px;gap:16px}
+    @media(max-width:900px){.main-grid{grid-template-columns:1fr;grid-template-rows:480px auto}}
+    @media(min-width:1100px){.main-grid{grid-template-rows:580px}}
+
+    .chart-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;height:100%;overflow:hidden}
+    [data-theme="dark"] .chart-card{background:#141414;border-color:var(--dark-border)}
+    .chart-ctrl{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+    .tog-grp{display:flex;gap:6px;flex-wrap:wrap}
+    .pill{display:flex;align-items:center;gap:5px;padding:4px 12px;border:1.5px solid;border-radius:8px;background:transparent;cursor:pointer;font-family:'Inter',sans-serif;font-size:.68rem;font-weight:600;transition:all .2s}
+    .pill:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+    .lp{width:16px;height:0;border-top:2.5px solid;border-radius:1px}
+    .lp.dashed{border-top-style:dashed}
+    .rng-grp{display:flex;gap:4px}
+    .rng{padding:4px 10px;border:1.5px solid var(--border);border-radius:7px;background:transparent;cursor:pointer;font-family:'Inter',sans-serif;font-size:.65rem;font-weight:600;color:var(--muted);transition:all .2s}
+    [data-theme="dark"] .rng{border-color:var(--dark-border);color:#94A3B8}
+    .rng:hover,.rng.active{border-color:var(--populi);color:var(--populi)}
+    [data-theme="dark"] .rng:hover,[data-theme="dark"] .rng.active{border-color:var(--populi-light);color:var(--populi-light)}
+    .chart-area{flex:1;min-height:0}
+    .chart-src{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:0 2px}
+    .chart-src-t{font-size:.58rem;color:var(--muted);opacity:.6}
+    .chart-src-t a{color:var(--populi);font-weight:600;text-decoration:none}
+    .chart-src-t a:hover{text-decoration:underline}
+    .wm{height:15px;width:auto;opacity:.18}
+    [data-theme="dark"] .wm{opacity:.10}
+
+    .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;height:100%}
+    [data-theme="dark"] .panel{background:#141414;border-color:var(--dark-border)}
+    .panel-hd{background:var(--navy);padding:8px 14px;display:flex;align-items:center;justify-content:space-between}
+    [data-theme="dark"] .panel-hd{background:var(--navy-light)}
+    .panel-hd-t{font-size:.56rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.8)}
+    .panel-hd-d{font-family:'JetBrains Mono',monospace;font-size:.56rem;font-weight:600;color:var(--populi-light);background:rgba(199,30,29,.15);padding:2px 8px;border-radius:5px}
+    .panel-body{padding:14px;flex:1;overflow-y:auto}
+    .pb{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+    [data-theme="dark"] .pb{border-color:var(--dark-border)}
+    .pb:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+    .pb-lbl{display:inline-flex;align-items:center;gap:4px;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;padding:2px 9px 2px 6px;border-radius:4px;border-left:3px solid}
+    .pb-val{font-family:'JetBrains Mono',monospace;font-size:.92rem;font-weight:700;margin-bottom:3px}
+    .pb-desc{font-size:.66rem;line-height:1.55;color:var(--slate-light)}
+    [data-theme="dark"] .pb-desc{color:rgba(255,255,255,.45)}
+    .pb-desc strong{color:var(--navy)}
+    [data-theme="dark"] .pb-desc strong{color:#E2E8F0}
+    .dt{font-family:'JetBrains Mono',monospace;font-weight:600;padding:1px 5px;border-radius:4px;font-size:.82em;white-space:nowrap}
+    .dt-r{background:rgba(199,30,29,.08);color:#C71E1D}
+    .dt-t{background:rgba(10,147,150,.08);color:#0A9396}
+    .dt-a{background:rgba(217,119,6,.08);color:#D97706}
+    .dt-i{background:rgba(99,102,241,.08);color:#6366F1}
+    .ctx{background:var(--cream);border-radius:6px;padding:8px 10px;border-left:3px solid var(--populi);margin-top:6px}
+    [data-theme="dark"] .ctx{background:var(--navy-light)}
+    .ctx p{font-size:.66rem;line-height:1.55;color:var(--slate-light)}
+    [data-theme="dark"] .ctx p{color:#94A3B8}
+    .ctx p strong{color:var(--navy)}
+    [data-theme="dark"] .ctx p strong{color:#E2E8F0}
+    .panel-ft{padding:10px 14px;border-top:1px solid var(--border)}
+    [data-theme="dark"] .panel-ft{border-color:var(--dark-border)}
+    .amp{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:8px 0;border-radius:8px;font-family:'Inter',sans-serif;font-size:.66rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--populi);background:rgba(139,26,26,.06);border:1.5px solid rgba(139,26,26,.15);transition:all .2s;text-decoration:none;cursor:pointer}
+    [data-theme="dark"] .amp{background:rgba(192,0,0,.08);border-color:rgba(192,0,0,.2);color:var(--populi-light)}
+    .amp:hover{background:rgba(139,26,26,.12);border-color:rgba(139,26,26,.3);transform:translateY(-1px);box-shadow:0 2px 8px rgba(139,26,26,.1);text-decoration:none}
+    .amp svg{width:13px;height:13px}
+
+    .edu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:16px}
+    .edu{background:var(--cream);border-radius:8px;padding:10px 12px;border-left:3px solid var(--populi);cursor:pointer;transition:all .2s}
+    [data-theme="dark"] .edu{background:var(--navy-light)}
+    .edu:hover{transform:translateY(-1px)}
+    .edu-tog{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .edu-t{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--populi)}
+    [data-theme="dark"] .edu-t{color:var(--populi-light)}
+    .edu-arr{font-size:.6rem;color:var(--muted);transition:transform .2s}
+    .edu.open .edu-arr{transform:rotate(180deg)}
+    .edu-c{display:none;margin-top:8px}
+    .edu.open .edu-c{display:block}
+    .edu-c p{font-size:.66rem;line-height:1.6;color:var(--slate-light);margin-bottom:6px}
+    .edu-c p:last-child{margin-bottom:0}
+    [data-theme="dark"] .edu-c p{color:#94A3B8}
+    .edu-c p strong{color:var(--navy)}
+    [data-theme="dark"] .edu-c p strong{color:#E2E8F0}
+
+    .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:400px;color:var(--muted)}
+    .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--populi);border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="loading" id="loader"><div class="spinner"></div><span style="font-size:.75rem">Cargando datos de inflación...</span></div>
+</div>
+<script>
+(function(){
+  const BASE = 'https://centro-de-estudios-populi.github.io/populi-inflacion/data/';
+  const DASH = 'https://centro-de-estudios-populi.github.io/populi-inflacion/';
+
+  const params = new URLSearchParams(window.location.search);
+  if(params.get('theme')==='dark') document.documentElement.dataset.theme='dark';
+  window.addEventListener('message',e=>{if(e.data&&e.data.theme)document.documentElement.dataset.theme=e.data.theme});
+
+  function dk(){return document.documentElement.dataset.theme==='dark'}
+  function fv(v){return(v>=0?'+':'')+v.toFixed(2)+'%'}
+  function fdate(f){const[y,m]=f.split('-');return['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][+m]+' '+y}
+
+  function calcYoY(serie){
+    return serie.map((p,i)=>{
+      if(i<12)return{fecha:p.fecha,valor:null};
+      return{fecha:p.fecha,valor:((p.valor/serie[i-12].valor)-1)*100};
+    }).filter(p=>p.valor!==null);
+  }
+
+  async function init(){
+    let desc,meta;
+    try{
+      [desc,meta]=await Promise.all([
+        fetch(BASE+'ipc_descomposicion.json').then(r=>r.json()),
+        fetch(BASE+'metadata.json').then(r=>r.json()),
+      ]);
+    }catch(e){
+      document.getElementById('loader').innerHTML='<span style="color:var(--ct-gen);font-size:.75rem">Error al cargar datos.</span>';
+      return;
+    }
+
+    const yoy={
+      general:calcYoY(desc.general),
+      nucleo:calcYoY(desc.nucleo),
+      alimentos:calcYoY(desc.alimentos),
+      energia:calcYoY(desc.energia),
+    };
+    const N=yoy.general.length;
+    const last=k=>yoy[k][N-1];
+    const prev=k=>yoy[k][N-2];
+    const pm=desc.meta;
+
+    const app=document.getElementById('app');
+    app.innerHTML=`
+      <h2 class="sec-title"><span class="accent-bar"></span>Desglose de la Inflación</h2>
+      <p class="sec-sub">Variación interanual por componente · ${pm.general.productos} productos · Base ${meta.base} = 100</p>
+      <div class="kpi-grid" id="kpis"></div>
+      <div class="main-grid">
+        <div class="chart-card">
+          <div class="chart-ctrl">
+            <div class="tog-grp" id="toggles"></div>
+            <div class="rng-grp" id="ranges"></div>
+          </div>
+          <div class="chart-area" id="chart"></div>
+          <div class="chart-src">
+            <span class="chart-src-t">Fuente: <a href="${meta.url_nacional}" target="_blank">INE Bolivia</a> · Elaboración: <a href="https://populi.org.bo" target="_blank">Centro de Estudios POPULI</a> · Datos al: ${fdate(last('general').fecha)}</span>
+            <svg viewBox="0 0 310 130" xmlns="http://www.w3.org/2000/svg" class="wm"><text x="6" y="112" font-family="'Playfair Display',Georgia,serif" font-size="145" font-weight="700" fill="${dk()?'#C00000':'#8B1A1A'}">P</text><text x="92" y="87" font-family="'Playfair Display',Georgia,serif" font-size="55" font-weight="400" font-style="italic" letter-spacing="1" fill="${dk()?'#F5EFE0':'#3D2B1F'}">opuli</text></svg>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-hd"><span class="panel-hd-t">Lectura del indicador</span><span class="panel-hd-d" id="p-date"></span></div>
+          <div class="panel-body" id="p-body"></div>
+          <div class="panel-ft">
+            <a href="${DASH}" target="_blank" class="amp"><span>Ampliar análisis</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+          </div>
+        </div>
+      </div>
+      <div class="edu-grid" id="edu"></div>`;
+
+    // ── KPIs ──
+    const kpis=[
+      {s:'g',lbl:'General',val:last('general').valor,prv:prev('general').valor,color:'var(--ct-gen)'},
+      {s:'n',lbl:`Núcleo (${pm.nucleo.ponderacion_total}%)`,val:last('nucleo').valor,prv:prev('nucleo').valor,color:'var(--ct-nuc)'},
+      {s:'a',lbl:`Alimentos (${pm.alimentos.ponderacion_total}%)`,val:last('alimentos').valor,prv:prev('alimentos').valor,color:'var(--ct-ali)'},
+      {s:'e',lbl:`Energía (${pm.energia.ponderacion_total}%)`,val:last('energia').valor,prv:prev('energia').valor,color:'var(--ct-ene)'},
+    ];
+    document.getElementById('kpis').innerHTML=kpis.map(k=>{
+      const d=k.val-k.prv;
+      const cls=Math.abs(d)<0.01?'flat':(d>0?'up':'down');
+      const arrow=cls==='up'?'&#9650;':cls==='down'?'&#9660;':'&#8212;';
+      return`<div class="kpi" data-s="${k.s}"><div class="kpi-lbl">${k.lbl}</div><div class="kpi-val" style="color:${k.color}">${fv(k.val)}</div><div class="kpi-d ${cls}">${arrow} ${Math.abs(d).toFixed(2)} pp</div></div>`;
+    }).join('');
+
+    // ── Series ──
+    const SERIES=[
+      {key:'general',label:'General',color:'#C71E1D',dashed:false},
+      {key:'nucleo',label:`Núcleo (${pm.nucleo.ponderacion_total}%)`,color:'#0A9396',dashed:false},
+      {key:'alimentos',label:`Alimentos (${pm.alimentos.ponderacion_total}%)`,color:'#D97706',dashed:false},
+      {key:'energia',label:`Energía (${pm.energia.ponderacion_total}%)`,color:'#6366F1',dashed:true},
+    ];
+    let active=new Set(SERIES.map(s=>s.key));
+
+    // ── Toggles ──
+    const togEl=document.getElementById('toggles');
+    SERIES.forEach(s=>{
+      const btn=document.createElement('button');
+      btn.className='pill';btn.dataset.key=s.key;
+      btn.innerHTML=`<span class="lp${s.dashed?' dashed':''}" style="border-color:#fff"></span>${s.label}`;
+      btn.addEventListener('click',()=>{
+        if(active.has(s.key)){if(active.size===1)return;active.delete(s.key)}else{active.add(s.key)}
+        syncPills();buildChart();
+      });
+      togEl.appendChild(btn);
+    });
+    function syncPills(){
+      document.querySelectorAll('.pill').forEach(btn=>{
+        const s=SERIES.find(x=>x.key===btn.dataset.key);if(!s)return;
+        const on=active.has(s.key);
+        btn.style.backgroundColor=on?s.color:'transparent';
+        btn.style.color=on?'#fff':s.color;
+        btn.style.borderColor=s.color;
+        const lp=btn.querySelector('.lp');if(lp)lp.style.borderColor=on?'#fff':s.color;
+      });
+    }
+    syncPills();
+
+    // ── Ranges ──
+    const RANGES=[{label:'2A',m:24},{label:'5A',m:60},{label:'Todo',m:0}];
+    let curRange=0;
+    const rngEl=document.getElementById('ranges');
+    RANGES.forEach((r,i)=>{
+      const btn=document.createElement('button');
+      btn.className='rng'+(i===RANGES.length-1?' active':'');
+      btn.textContent=r.label;
+      btn.addEventListener('click',()=>{
+        curRange=r.m;
+        document.querySelectorAll('.rng').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        buildChart();
+      });
+      rngEl.appendChild(btn);
+    });
+
+    // ── Panel ──
+    let curIdx=N-1;
+    function updatePanel(idx){
+      if(idx<0||idx>=N)return;
+      curIdx=idx;
+      const g=yoy.general[idx],nu=yoy.nucleo[idx],al=yoy.alimentos[idx],en=yoy.energia[idx];
+      document.getElementById('p-date').textContent=fdate(g.fecha);
+
+      const comps=[{n:'Alimentos',v:al.valor,c:'#D97706'},{n:'Energía',v:en.valor,c:'#6366F1'},{n:'Núcleo',v:nu.valor,c:'#0A9396'}];
+      comps.sort((a,b)=>b.v-a.v);
+      const driver=comps[0];
+
+      let analysis;
+      if(al.valor>nu.valor*1.5&&al.valor>en.valor)
+        analysis=`Los <strong>alimentos</strong> lideran la inflación con <span class="dt dt-a">${fv(al.valor)}</span>, superando ampliamente al núcleo (<span class="dt dt-t">${fv(nu.valor)}</span>). La presión alimentaria tiene un impacto directo y desproporcionado en los hogares de menores ingresos, que destinan mayor proporción de su gasto a la canasta alimentaria.`;
+      else if(en.valor>nu.valor*1.5&&en.valor>al.valor)
+        analysis=`La <strong>energía</strong> es el principal motor inflacionario con <span class="dt dt-i">${fv(en.valor)}</span>. El alza en combustibles y servicios energéticos se transmite gradualmente al resto de la economía a través de costos de transporte y producción, anticipando presiones futuras en otros componentes.`;
+      else if(nu.valor>al.valor&&nu.valor>en.valor)
+        analysis=`La <strong>inflación núcleo</strong> lidera con <span class="dt dt-t">${fv(nu.valor)}</span>, señal de <strong>presiones inflacionarias generalizadas</strong> que no se explican por shocks de oferta puntuales. Este es el tipo de inflación más difícil de revertir y sugiere un desequilibrio monetario estructural.`;
+      else
+        analysis=`La inflación se distribuye de forma <strong>relativamente uniforme</strong> entre componentes. ${driver.n} lidera con <span class="dt" style="background:${driver.c}15;color:${driver.c}">${fv(driver.v)}</span>, pero la diferencia entre categorías es moderada, indicando presiones generalizadas.`;
+
+      document.getElementById('p-body').innerHTML=`
+        <div class="pb">
+          <div class="pb-lbl" style="color:#C71E1D;background:rgba(199,30,29,.08);border-left-color:#C71E1D">IPC General</div>
+          <div class="pb-val" style="color:#C71E1D">${fv(g.valor)}</div>
+          <p class="pb-desc">Variación interanual del índice general. Incluye los <strong>${pm.general.productos} productos</strong> de la canasta IPC con ponderaciones del INE.</p>
+        </div>
+        <div class="pb">
+          <div class="pb-lbl" style="color:#0A9396;background:rgba(10,147,150,.08);border-left-color:#0A9396">Inflación Núcleo</div>
+          <div class="pb-val" style="color:#0A9396">${fv(nu.valor)}</div>
+          <p class="pb-desc"><strong>${pm.nucleo.productos} productos</strong> (${pm.nucleo.ponderacion_total}% de la canasta). Bienes y servicios con precios más estables — excluye alimentos y energía para reflejar la tendencia de fondo.</p>
+        </div>
+        <div class="pb">
+          <div class="pb-lbl" style="color:#D97706;background:rgba(217,119,6,.08);border-left-color:#D97706">Alimentos</div>
+          <div class="pb-val" style="color:#D97706">${fv(al.valor)}</div>
+          <p class="pb-desc"><strong>${pm.alimentos.productos} productos</strong> (${pm.alimentos.ponderacion_total}%). Alimentos y bebidas, sensibles a factores estacionales, climáticos y de tipo de cambio que encarece las importaciones.</p>
+        </div>
+        <div class="pb">
+          <div class="pb-lbl" style="color:#6366F1;background:rgba(99,102,241,.08);border-left-color:#6366F1">Energía</div>
+          <div class="pb-val" style="color:#6366F1">${fv(en.valor)}</div>
+          <p class="pb-desc"><strong>${pm.energia.productos} productos</strong> (${pm.energia.ponderacion_total}%). Combustibles, electricidad y gas, influenciados por mercados internacionales y regulaciones gubernamentales.</p>
+        </div>
+        <div class="ctx"><p>${analysis}</p></div>`;
+    }
+
+    // ── Chart ──
+    let chart=null;
+    function buildChart(){
+      const container=document.getElementById('chart');
+      if(!chart)chart=echarts.init(container);
+      const d=dk();
+      const src=curRange>0?yoy.general.slice(-curRange):yoy.general;
+      const dates=src.map(p=>p.fecha);
+      const series=[];const colors=[];
+
+      SERIES.forEach(s=>{
+        if(!active.has(s.key))return;
+        colors.push(s.color);
+        const raw=curRange>0?yoy[s.key].slice(-curRange):yoy[s.key];
+        const vals=raw.map(p=>p.valor!=null?+p.valor.toFixed(2):null);
+        const lastV=vals.filter(v=>v!=null).pop();
+        const lastIdx=vals.lastIndexOf(lastV);
+        series.push({
+          name:s.label,type:'line',data:vals,symbol:'none',
+          lineStyle:{width:2.5,type:s.dashed?[6,4]:'solid'},
+          connectNulls:true,
+          areaStyle:s.key==='general'?{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:s.color+'15'},{offset:1,color:s.color+'02'}])}:undefined,
+          markPoint:lastIdx>=0?{data:[{coord:[lastIdx,lastV]}],symbol:'circle',symbolSize:7,itemStyle:{color:s.color,borderColor:d?'#141414':'#fff',borderWidth:2},label:{show:false}}:undefined,
+          z:3
+        });
+      });
+
+      chart.setOption({
+        color:colors,backgroundColor:'transparent',
+        grid:{top:30,right:16,bottom:44,left:52},
+        tooltip:{
+          trigger:'axis',
+          backgroundColor:d?'#080808':'rgba(13,27,42,.96)',
+          borderColor:d?'#2A3A50':'#1A2940',
+          textStyle:{fontFamily:'Inter',fontSize:12,color:'#fff'},
+          padding:[12,16],
+          extraCssText:'border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.3);',
+          formatter:function(ps){
+            if(!ps.length)return'';
+            const idx=ps[0].dataIndex;
+            const startIdx=curRange>0?N-curRange:0;
+            updatePanel(startIdx+idx);
+            let h=`<div style="font-weight:700;margin-bottom:6px;color:#E9D8A6;font-size:12px">${fdate(dates[idx])}</div>`;
+            ps.forEach(p=>{
+              if(p.value==null)return;
+              h+=`<div style="display:flex;align-items:center;gap:8px;margin:3px 0"><span style="width:8px;height:8px;border-radius:50%;background:${p.color};display:inline-block"></span><span style="flex:1;font-size:11px;color:rgba(255,255,255,.7)">${p.seriesName}</span><span style="font-family:'JetBrains Mono';font-weight:700;font-size:12px">${fv(p.value)}</span></div>`;
+            });
+            return h;
+          }
+        },
+        xAxis:{
+          type:'category',data:dates,
+          axisLine:{lineStyle:{color:d?'#2A3A50':'#E2DDD3'}},
+          axisTick:{show:false},
+          axisLabel:{
+            fontFamily:'Inter',fontSize:10,fontWeight:500,color:d?'#64748B':'#94A3B8',
+            formatter:function(v,idx){
+              if(idx===0||idx===dates.length-1)return fdate(v);
+              if(idx>0){const cm=v.split('-')[1],pm2=dates[idx-1].split('-')[1];if(cm!==pm2)return fdate(v)}
+              const step=Math.max(1,Math.round(dates.length/8));
+              if(idx%step===0)return fdate(v);
+              return'';
+            },showMinLabel:true,showMaxLabel:true
+          }
+        },
+        yAxis:{
+          type:'value',
+          splitLine:{lineStyle:{color:d?'#1E1E1E':'#F1F5F9',type:'dashed'}},
+          axisLine:{show:false},axisTick:{show:false},
+          axisLabel:{fontFamily:'JetBrains Mono',fontSize:11,color:d?'#64748B':'#94A3B8',formatter:v=>(v>=0?'+':'')+v.toFixed(0)+'%'}
+        },
+        series:series
+      },true);
+    }
+
+    buildChart();
+    updatePanel(N-1);
+    window.addEventListener('resize',()=>chart&&chart.resize());
+    new MutationObserver(()=>{buildChart();updatePanel(curIdx)}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+    // ── Edu Boxes ──
+    document.getElementById('edu').innerHTML=[
+      {
+        title:'¿Qué es la inflación núcleo?',
+        content:`<p>La <strong>inflación núcleo (core)</strong> comprende ${pm.nucleo.productos} productos con precios más estables: prendas de vestir, educación, salud, comunicaciones y otros servicios. <strong>Excluye alimentos y energía</strong> por su alta volatilidad, revelando la <strong>tendencia de fondo</strong> de los precios.</p>
+        <p>Cuando la inflación núcleo sube, las presiones no se explican por factores estacionales o shocks de oferta puntuales — se trata de inflación "estructural", generalmente vinculada a desequilibrios monetarios. Los bancos centrales la usan como guía para decisiones de política monetaria.</p>`
+      },
+      {
+        title:'¿Por qué importa la descomposición?',
+        content:`<p>Descomponer la inflación en <strong>Núcleo</strong> (${pm.nucleo.ponderacion_total}%), <strong>Alimentos</strong> (${pm.alimentos.ponderacion_total}%) y <strong>Energía</strong> (${pm.energia.ponderacion_total}%) permite identificar <strong>qué está impulsando el alza de precios</strong> y diseñar respuestas adecuadas.</p>
+        <p>Si los alimentos suben más que el núcleo, puede tratarse de un <strong>shock de oferta</strong> (sequía, logística, tipo de cambio). Si la energía lidera, hay presión por <strong>precios internacionales</strong> o ajustes de subsidios. Si el núcleo sube, es señal de <strong>desequilibrio monetario generalizado</strong> — el tipo de inflación más persistente y difícil de corregir.</p>`
+      },
+      {
+        title:'Alimentos: el impacto desigual',
+        content:`<p>Los hogares de menores ingresos en Bolivia destinan hasta el <strong>50% de su gasto</strong> a alimentos, frente al 20-25% de hogares de ingresos altos. Esto significa que la inflación alimentaria es un <strong>impuesto regresivo</strong>: golpea más a quienes menos tienen.</p>
+        <p>Además, en un contexto de brecha cambiaria, los alimentos importados o con insumos importados reflejan el <strong>tipo de cambio paralelo</strong>, no el oficial — trasladando la depreciación de facto del boliviano directamente a la mesa de los bolivianos.</p>`
+      }
+    ].map(e=>`<div class="edu" onclick="this.classList.toggle('open')"><div class="edu-tog"><span class="edu-t">${e.title}</span><span class="edu-arr">&#9660;</span></div><div class="edu-c">${e.content}</div></div>`).join('');
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
