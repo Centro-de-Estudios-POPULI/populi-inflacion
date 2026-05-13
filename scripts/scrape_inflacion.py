@@ -565,10 +565,107 @@ def procesar_ciudades_productos_top(contenido: bytes) -> dict:
     return resultado
 
 
+ENERGIA_CODIGOS = {"04510101", "04520101", "04520201", "04520202"}
+
+
+def clasificar_producto(codigo: str) -> str:
+    div = codigo[:2] if len(codigo) >= 2 else ""
+    if div == "01":
+        return "alimentos"
+    if div == "07":
+        return "energia"
+    if codigo in ENERGIA_CODIGOS:
+        return "energia"
+    return "nucleo"
+
+
+def calcular_descomposicion(contenido_prod: bytes, contenido_pond: bytes) -> dict:
+    """
+    Calcula indices ponderados para: general, nucleo, alimentos, energia.
+    Usa datos a nivel de producto con ponderaciones reescaladas por categoria.
+    """
+    wb_pond = abrir_excel(contenido_pond)
+    ponderaciones = {}
+    for sheet_name in wb_pond.sheetnames:
+        if "INICIO" in sheet_name.upper():
+            continue
+        ws = wb_pond[sheet_name]
+        for fila in range(1, ws.max_row + 1):
+            code = ws.cell(row=fila, column=1).value
+            desc = ws.cell(row=fila, column=2).value
+            pond = safe_float(ws.cell(row=fila, column=3).value)
+            if code and desc and pond is not None:
+                code_str = str(code).strip()
+                if len(code_str) >= 4:
+                    ponderaciones[code_str] = {
+                        "desc": str(desc).strip(),
+                        "pond": pond,
+                        "cat": clasificar_producto(code_str),
+                    }
+
+    wb_prod = abrir_excel(contenido_prod)
+    series_prod = {}
+    for sheet_name in wb_prod.sheetnames:
+        if "INICIO" in sheet_name.upper():
+            continue
+        ws = wb_prod[sheet_name]
+        datos = leer_tipo_C(ws)
+        for nombre, serie in datos.items():
+            codigo = nombre.split(".")[0].strip()
+            desc = nombre.split(". ", 1)[-1].strip() if ". " in nombre else nombre.strip()
+            if codigo in ponderaciones:
+                series_prod[codigo] = serie
+            else:
+                for pc, pi in ponderaciones.items():
+                    if pi["desc"] == desc:
+                        series_prod[pc] = serie
+                        break
+        break
+
+    cats = {"general": {}, "nucleo": {}, "alimentos": {}, "energia": {}}
+    for codigo, info in ponderaciones.items():
+        if codigo not in series_prod:
+            continue
+        cat = info["cat"]
+        cats["general"][codigo] = info["pond"]
+        cats[cat][codigo] = info["pond"]
+
+    resultado = {}
+    for cat_name, prods_pond in cats.items():
+        if not prods_pond:
+            continue
+        total_pond = sum(prods_pond.values())
+        if total_pond == 0:
+            continue
+        pesos = {c: p / total_pond for c, p in prods_pond.items()}
+
+        por_fecha = {}
+        for codigo, peso in pesos.items():
+            serie = series_prod.get(codigo, [])
+            for punto in serie:
+                f = punto["fecha"]
+                if f not in por_fecha:
+                    por_fecha[f] = 0.0
+                por_fecha[f] += punto["valor"] * peso
+
+        indice = [{"fecha": f, "valor": round(v, 6)}
+                  for f, v in sorted(por_fecha.items())]
+        resultado[cat_name] = indice
+
+    meta = {}
+    for cat_name, prods_pond in cats.items():
+        total = sum(prods_pond.values())
+        meta[cat_name] = {
+            "productos": len(prods_pond),
+            "ponderacion_total": round(total, 2),
+        }
+    resultado["meta"] = meta
+
+    return resultado
+
+
 def calcular_nucleo(divisiones: dict) -> list[dict]:
-    """
-    Inflacion nucleo: promedio de divisiones excluyendo alimentos y transporte.
-    """
+    """Fallback: promedio simple de divisiones excluyendo alimentos y transporte."""
     excluir_claves = {"1", "7", "01", "07"}
     excluir_nombres = {"ALIMENTOS", "TRANSPORTE"}
 
@@ -730,6 +827,22 @@ def main() -> None:
         out_path = DATA_DIR / "ipc_productos.json"
         out_path.write_text(json.dumps(productos, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         print(f"  [OK] ipc_productos.json - {productos['total_productos']} productos")
+
+        descomp = calcular_descomposicion(archivos["productos"], archivos["ponderaciones"])
+        out_path = DATA_DIR / "ipc_descomposicion.json"
+        out_path.write_text(json.dumps(descomp, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        meta = descomp.get("meta", {})
+        for cat, info in meta.items():
+            print(f"    {cat}: {info['productos']} prods, pond={info['ponderacion_total']}%")
+        print(f"  [OK] ipc_descomposicion.json")
+
+        if "nucleo" in descomp and descomp["nucleo"]:
+            nucleo_path = DATA_DIR / "ipc_nucleo.json"
+            nucleo_path.write_text(
+                json.dumps(descomp["nucleo"], ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            print(f"  [OK] ipc_nucleo.json (ponderado) - {len(descomp['nucleo'])} meses")
 
     if "productos" in archivos:
         prod_hist = procesar_productos_historico(archivos["productos"])

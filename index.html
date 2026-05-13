@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Inflación Bolivia · Análisis IPC · Populi</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='85' font-family='serif' font-weight='700' fill='%23C71E1D'>P</text></svg>">
+  <meta property="og:title" content="Inflación Bolivia · Análisis IPC">
+  <meta property="og:description" content="Dashboard interactivo del Índice de Precios al Consumidor de Bolivia. Desglose por división, alimentos, inflación núcleo, departamentos y comparativo regional. Datos INE y CEPALSTAT.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Centro de Estudios POPULI">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Inflación Bolivia · Análisis IPC · Populi">
+  <meta name="twitter:description" content="Dashboard interactivo del IPC boliviano con desglose por división, inflación núcleo, departamentos y comparativo regional.">
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=IBM+Plex+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -30,7 +38,6 @@
     [data-theme="dark"] .navbar { background:linear-gradient(160deg,#1A0606 0%,#0A0202 100%); border-top-color:rgba(199,30,29,.2); box-shadow:0 1px 0 rgba(199,30,29,.12),0 4px 20px rgba(0,0,0,.7); }
     [data-theme="dark"] .logo-p { fill:rgba(199,30,29,.9); }
     [data-theme="dark"] .logo-opuli { fill:rgba(245,239,224,.85); }
-    [data-theme="dark"] .brand-badge { color:rgba(199,30,29,.9); background:rgba(199,30,29,.1); border-color:rgba(199,30,29,.2); }
     [data-theme="dark"] .nav-divider { background:rgba(255,255,255,.08); }
     [data-theme="dark"] .brand-sub { color:rgba(255,255,255,.25); }
     [data-theme="dark"] .nav-center { color:rgba(255,255,255,.7); }
@@ -57,7 +64,6 @@
     .nav-left { display:flex; align-items:center; gap:10px; }
     .logo-p { fill:rgba(255,255,255,.95); }
     .logo-opuli { fill:rgba(255,255,255,.78); }
-    .brand-badge { font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:500; letter-spacing:2.5px; color:rgba(255,255,255,.95); background:rgba(0,0,0,.2); border:1px solid rgba(255,255,255,.16); padding:4px 11px; border-radius:5px; }
     .nav-divider { width:1px; height:18px; background:rgba(255,255,255,.16); }
     .brand-sub { font-size:11px; font-weight:400; color:rgba(255,255,255,.45); letter-spacing:.2px; white-space:nowrap; }
     .nav-center { text-align:center; font-size:13px; font-weight:600; letter-spacing:-.1px; color:rgba(255,255,255,.92); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -114,13 +120,16 @@
     .chart { width:100%; height:350px; }
     .chart-tall { height:420px; }
     .chart-med { height:280px; }
-    .chart-xl { height:440px; }
-    @media(max-width:700px){ .chart{height:240px;} .chart-tall{height:300px;} .chart-med{height:220px;} .chart-xl{height:300px;} }
+    .chart-xl { height:400px; }
+    @media(max-width:700px){ .chart{height:240px;} .chart-tall{height:300px;} .chart-med{height:220px;} .chart-xl{height:280px;} }
 
     .range-btns { display:flex; gap:4px; flex-shrink:0; }
     .rbtn { padding:4px 11px; border-radius:20px; border:1.5px solid var(--border); background:transparent; color:var(--muted); font-family:'Inter',sans-serif; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; transition:all .14s; }
     .rbtn:hover { border-color:var(--red); color:var(--red); background:rgba(199,30,29,.06); }
     .rbtn.active { background:var(--red); border-color:var(--red); color:#fff; }
+
+    .dual-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media(max-width:900px){ .dual-grid{grid-template-columns:1fr;} }
 
     .triple-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
     @media(max-width:900px){ .triple-grid{grid-template-columns:1fr;} }
@@ -130,8 +139,9 @@
     .map-col { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; }
     @media(max-width:900px){ .map-col{grid-template-columns:1fr;} }
     table { width:100%; border-collapse:collapse; }
-    thead tr { background:#0A0A0A; }
+    thead tr { background:var(--navy); }
     thead th { padding:11px 16px; text-align:left; font-size:9.5px; font-weight:700; letter-spacing:.7px; text-transform:uppercase; color:rgba(255,255,255,.6); white-space:nowrap; }
+    [data-theme="dark"] thead tr { background:#0A0A0A; }
     tbody tr { border-bottom:1px solid var(--border2); transition:background .1s; }
     tbody tr:last-child { border-bottom:none; }
     tbody tr:hover { background:var(--card2); }
@@ -149,6 +159,30 @@
     .sm-val { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500; }
     .sm-sub { font-size:9.5px; color:var(--muted); margin-bottom:4px; }
     .sm-chart { width:100%; height:160px; }
+
+    .report-btn { margin-top:16px; padding:9px 22px; border-radius:8px; border:1.5px solid rgba(255,255,255,.2); background:rgba(0,0,0,.25); color:rgba(255,255,255,.9); font-family:'Inter',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all .14s; letter-spacing:.2px; }
+    .report-btn:hover { background:rgba(0,0,0,.4); border-color:rgba(255,255,255,.35); }
+    .report-modal { position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.7); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; padding:20px; }
+    .report-box { background:var(--card); border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.5); max-width:680px; width:100%; max-height:85vh; display:flex; flex-direction:column; }
+    .report-header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--border); }
+    .report-title { font-size:14px; font-weight:700; color:var(--text); }
+    .report-close { width:30px; height:30px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; }
+    .report-close:hover { background:var(--card2); }
+    .report-body { padding:20px 22px; overflow-y:auto; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.75; color:var(--text); white-space:pre-wrap; word-wrap:break-word; flex:1; margin:0; background:transparent; }
+    .report-footer { padding:14px 22px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; }
+    .report-copy { padding:8px 18px; border-radius:8px; border:1.5px solid var(--red); background:transparent; color:var(--red); font-family:'Inter',sans-serif; font-size:12px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all .14s; }
+    .report-copy:hover { background:rgba(199,30,29,.08); }
+
+    @media(max-width:700px){ #productos-grid{grid-template-columns:1fr !important;} }
+
+    .kpi-trend { display:inline-flex; align-items:center; gap:3px; font-size:11px; font-weight:600; font-family:'IBM Plex Mono',monospace; margin-top:3px; }
+    .kpi-trend.trend-up { color:#C71E1D; }
+    .kpi-trend.trend-down { color:#0A9396; }
+    .kpi-trend.trend-flat { color:var(--muted); }
+
+    .scroll-top { position:fixed; bottom:28px; right:28px; width:40px; height:40px; border-radius:50%; border:1.5px solid var(--border); background:var(--card); color:var(--text); box-shadow:var(--shadow); cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:900; opacity:0; pointer-events:none; transition:opacity .2s,background .15s; }
+    .scroll-top.visible { opacity:1; pointer-events:auto; }
+    .scroll-top:hover { background:var(--red); color:#fff; border-color:var(--red); }
 
     .loading { display:flex; align-items:center; justify-content:center; height:100%; min-height:180px; color:var(--muted); font-size:13px; }
 
@@ -173,7 +207,7 @@
         <text x="92" y="87" font-family="'Playfair Display',Georgia,serif" font-size="55" font-weight="400" font-style="italic" letter-spacing="1" class="logo-opuli">opuli</text>
       </svg>
       <span class="nav-divider"></span>
-      <span class="brand-sub">Centro de Estudios</span>
+      <span class="brand-sub">Centro de Estudios de Políticas Públicas para la Libertad</span>
     </div>
     <div class="nav-center">Inflación IPC · Bolivia</div>
     <div class="nav-right">
@@ -191,13 +225,27 @@
   <div class="hero-inner">
     <h1>Análisis de Inflación <em>· Bolivia</em></h1>
     <p class="hero-desc">Índice de Precios al Consumidor (Base 2016=100). Desglose por división, alimentos, inflación núcleo, transables, departamentos y comparativo regional. Datos oficiales del INE y CEPALSTAT actualizados mensualmente.</p>
+    <button id="btn-report" class="report-btn" style="display:none" onclick="openReport()">Resumen mensual</button>
+  </div>
+</div>
+
+<div id="report-modal" class="report-modal" style="display:none">
+  <div class="report-box">
+    <div class="report-header">
+      <span class="report-title">Resumen Mensual de Inflación</span>
+      <button class="report-close" onclick="closeReport()">✕</button>
+    </div>
+    <pre id="report-body" class="report-body"></pre>
+    <div class="report-footer">
+      <button class="report-copy" onclick="copyReport()"><span id="copy-icon">📋</span> <span id="copy-text">Copiar al portapapeles</span></button>
+    </div>
   </div>
 </div>
 
 <div class="info-strip">
   <div class="info-strip-inner">
     <span style="font-size:14px;flex-shrink:0">i</span>
-    <span><b>Fuentes:</b> Instituto Nacional de Estadística (INE) — IPC Base 2016 · CEPALSTAT (CEPAL) — Datos regionales. Cobertura INE: 6 ciudades capitales + 3 conurbaciones. Actualización mensual.</span>
+    <span><b>Fuentes:</b> Instituto Nacional de Estadística (INE) — IPC Base 2016 · CEPALSTAT (CEPAL) — Datos regionales. Cobertura: 6 ciudades capitales + 3 conurbaciones. <b>Última actualización: <span id="info-updated">—</span></b></span>
   </div>
 </div>
 
@@ -217,11 +265,11 @@
       Estos cinco indicadores resumen el estado actual de la inflación en Bolivia. <b>La inflación interanual</b> compara precios con los de hace 12 meses y es la medida más usada internacionalmente. <b>La mensual</b> captura cambios recientes. <b>La acumulada</b> muestra cuánto subieron los precios desde enero. <b>El índice general</b> es el valor absoluto del IPC (Base 2016=100). <b>La inflación núcleo</b> excluye alimentos y transporte para revelar tendencias de fondo.
     </div>
     <div class="kpi-grid" id="kpi-grid">
-      <div class="kpi-card c-red"><div class="kpi-label">Inflación interanual</div><div class="kpi-value"><span id="kpi-inter">—</span><span class="kpi-unit"> %</span></div><div class="kpi-sub">Variación a 12 meses del IPC general</div></div>
-      <div class="kpi-card c-orange"><div class="kpi-label">Inflación mensual</div><div class="kpi-value"><span id="kpi-mens">—</span><span class="kpi-unit"> %</span></div><div class="kpi-sub">Variación respecto al mes anterior</div></div>
-      <div class="kpi-card c-teal"><div class="kpi-label">Inflación acumulada</div><div class="kpi-value"><span id="kpi-acum">—</span><span class="kpi-unit"> %</span></div><div class="kpi-sub">Variación acumulada en el año</div></div>
-      <div class="kpi-card c-petro"><div class="kpi-label">Índice general</div><div class="kpi-value"><span id="kpi-indice">—</span></div><div class="kpi-sub">Base 2016 = 100</div></div>
-      <div class="kpi-card c-garnet"><div class="kpi-label">Inflación núcleo</div><div class="kpi-value"><span id="kpi-nucleo">—</span></div><div class="kpi-sub">Excluye alimentos y transporte (índice)</div></div>
+      <div class="kpi-card c-red"><div class="kpi-label">Inflación interanual</div><div class="kpi-value"><span id="kpi-inter">—</span><span class="kpi-unit"> %</span></div><div id="kpi-inter-trend" class="kpi-trend"></div><div class="kpi-sub">Variación a 12 meses del IPC general</div></div>
+      <div class="kpi-card c-orange"><div class="kpi-label">Inflación mensual</div><div class="kpi-value"><span id="kpi-mens">—</span><span class="kpi-unit"> %</span></div><div id="kpi-mens-trend" class="kpi-trend"></div><div class="kpi-sub">Variación respecto al mes anterior</div></div>
+      <div class="kpi-card c-teal"><div class="kpi-label">Inflación acumulada</div><div class="kpi-value"><span id="kpi-acum">—</span><span class="kpi-unit"> %</span></div><div id="kpi-acum-trend" class="kpi-trend"></div><div class="kpi-sub">Variación acumulada en el año</div></div>
+      <div class="kpi-card c-petro"><div class="kpi-label">Índice general</div><div class="kpi-value"><span id="kpi-indice">—</span></div><div id="kpi-indice-trend" class="kpi-trend"></div><div class="kpi-sub">Base 2016 = 100</div></div>
+      <div class="kpi-card c-garnet"><div class="kpi-label">Inflación núcleo</div><div class="kpi-value"><span id="kpi-nucleo">—</span></div><div id="kpi-nucleo-trend" class="kpi-trend"></div><div class="kpi-sub">Excluye alimentos y energía/transporte</div></div>
     </div>
   </section>
 
@@ -236,7 +284,7 @@
     </div>
     <div class="edu-box">
       <span class="edu-label">¿Cómo leer este gráfico?</span>
-      Tres formas de medir la inflación en un solo gráfico. <b>La línea punteada naranja (mensual)</b> es la más volátil — captura shocks puntuales. <b>La línea teal (acumulada)</b> arranca en 0% cada enero y va sumando. <b>La línea roja (interanual)</b> es la más estable y la referencia principal para política económica. Si la interanual sube sostenidamente, hay presión inflacionaria estructural.
+      Tres formas de medir la inflación en un solo gráfico. <b>La línea punteada naranja (mensual)</b> es la más volátil — captura shocks puntuales. <b>La línea teal (acumulada)</b> arranca en 0% cada enero y va sumando. <b>La línea roja (interanual)</b> es la más estable y la referencia principal para política económica. <b>La línea punteada púrpura</b> marca la meta de inflación del PGE 2026 reformulado (14%). Si la interanual cruza esa línea, el gobierno estaría incumpliendo su propia proyección.
     </div>
     <div class="chart-card">
       <div class="chart-card-top">
@@ -281,107 +329,85 @@
     <div class="small-multiples" id="divisiones-grid"></div>
   </section>
 
-  <!-- 04 Alimentos vs No Alimentos -->
+  <!-- 04-05 Alimentos + Núcleo (lado a lado) -->
   <section class="section">
     <div class="section-header">
       <span class="section-num">04</span>
       <div class="section-titles">
-        <h2>Alimentos vs. No Alimentos</h2>
-        <p>Comparación del índice de precios — la brecha refleja la presión alimentaria</p>
+        <h2>Descomposición de la Inflación</h2>
+        <p>Alimentos vs. No Alimentos · Inflación General vs. Núcleo — variación interanual (12 meses)</p>
       </div>
     </div>
     <div class="edu-box">
-      <span class="edu-label">¿Qué significa la brecha?</span>
-      <b>Los alimentos</b> son el componente más volátil de la canasta básica — dependen del clima, los costos de transporte y los precios internacionales. Cuando la línea roja (alimentos) se separa hacia arriba de la teal (no alimentos), los hogares más pobres son los más afectados, ya que destinan una mayor proporción de su ingreso a comida.
+      <span class="edu-label">¿Qué estás viendo?</span>
+      <b>Izquierda:</b> la brecha entre alimentos y no alimentos muestra la presión alimentaria — cuando la línea roja se separa, los hogares más pobres son los más afectados. <b>Derecha:</b> descomposición del IPC en 4 categorías ponderadas a nivel de producto (398 items). <b>Núcleo</b> (60.9%) excluye alimentos y energía/transporte. <b>Alimentos</b> (27.1%) captura presión alimentaria. <b>Energía</b> (12.0%) incluye transporte y combustibles. Si las 4 convergen, la presión es <b>estructural</b>.
     </div>
-    <div class="chart-card">
-      <div class="chart-card-top">
-        <div class="chart-card-meta"><span class="chart-card-title">Índice de precios (Base 2016=100)</span><span class="chart-card-sub">Alimentos tienden a ser más volátiles que el resto de la canasta</span></div>
-        <div class="range-btns" id="rb-ali">
-          <button class="rbtn" data-m="24">2A</button>
-          <button class="rbtn active" data-m="0">Todo</button>
+    <div class="dual-grid">
+      <div class="chart-card">
+        <div class="chart-card-top">
+          <div class="chart-card-meta"><span class="chart-card-title">Alimentos vs. No Alimentos</span><span class="chart-card-sub">Variación interanual (%) · INE</span></div>
+          <div class="range-btns" id="rb-ali">
+            <button class="rbtn" data-m="24">2A</button>
+            <button class="rbtn active" data-m="0">Todo</button>
+          </div>
         </div>
+        <div id="chart-alimentos" class="chart"><div class="loading">Cargando...</div></div>
       </div>
-      <div id="chart-alimentos" class="chart"><div class="loading">Cargando...</div></div>
+      <div class="chart-card">
+        <div class="chart-card-top">
+          <div class="chart-card-meta"><span class="chart-card-title">Descomposición IPC</span><span class="chart-card-sub">Var. interanual (%) · General, Núcleo, Alimentos, Energía</span></div>
+          <div class="range-btns" id="rb-nuc">
+            <button class="rbtn" data-m="24">2A</button>
+            <button class="rbtn active" data-m="0">Todo</button>
+          </div>
+        </div>
+        <div id="chart-nucleo" class="chart"><div class="loading">Cargando...</div></div>
+      </div>
     </div>
   </section>
 
-  <!-- 05 Inflación Núcleo -->
+  <!-- 05-06 Transables + Regional (lado a lado) -->
   <section class="section">
     <div class="section-header">
       <span class="section-num">05</span>
       <div class="section-titles">
-        <h2>Inflación Núcleo vs. General</h2>
-        <p>La inflación núcleo excluye alimentos y transporte, revelando la tendencia subyacente</p>
+        <h2>Contexto Externo</h2>
+        <p>Transables vs. No Transables · Bolivia en la Región — variación interanual · CEPALSTAT</p>
       </div>
     </div>
     <div class="edu-box">
-      <span class="edu-label">¿Por qué excluir alimentos y transporte?</span>
-      La <b>inflación núcleo</b> (o subyacente) filtra los componentes más volátiles para revelar la tendencia de fondo. Cuando ambas líneas se mueven juntas, la presión inflacionaria es <b>estructural</b>. Cuando divergen — la general sube pero la núcleo se mantiene — los shocks son probablemente <b>temporales</b> (ej.: sequía que encarece alimentos). Los bancos centrales observan la núcleo para decisiones de política monetaria.
+      <span class="edu-label">¿Qué estás viendo?</span>
+      <b>Izquierda:</b> <b>transables</b> (bienes comerciables: importaciones, combustibles) vs. <b>no transables</b> (servicios locales: alquiler, educación). Si los transables suben más, hay presión cambiaria. <b>Derecha:</b> inflación de Bolivia comparada con Sudamérica — permite distinguir presión <b>local</b> de fenómenos <b>regionales</b>. Bolivia en rojo; clic en la leyenda para mostrar/ocultar países.
     </div>
-    <div class="chart-card">
-      <div class="chart-card-top">
-        <div class="chart-card-meta"><span class="chart-card-title">Índice general vs. núcleo (Base 2016=100)</span><span class="chart-card-sub">Convergencia = presión estructural · Divergencia = shock transitorio</span></div>
-      </div>
-      <div id="chart-nucleo" class="chart"><div class="loading">Cargando...</div></div>
-    </div>
-  </section>
-
-  <!-- 06 Transables vs No Transables -->
-  <section class="section">
-    <div class="section-header">
-      <span class="section-num">06</span>
-      <div class="section-titles">
-        <h2>Transables vs. No Transables</h2>
-        <p>Bienes comerciables internacionalmente vs. servicios y bienes locales — Fuente: CEPALSTAT</p>
-      </div>
-    </div>
-    <div class="edu-box">
-      <span class="edu-label">¿Qué son bienes transables y no transables?</span>
-      <b>Transables</b> son bienes que se comercian internacionalmente: alimentos industrializados, electrónicos, combustibles, ropa importada. Su precio depende del tipo de cambio, aranceles y precios internacionales. <b>No transables</b> son servicios y bienes locales: alquiler, educación, salud, peluquería. Su precio depende de la demanda interna y costos laborales. Cuando los transables suben más, sugiere <b>presión cambiaria</b> o encarecimiento de importaciones.
-    </div>
-    <div class="chart-card">
-      <div class="chart-card-top">
-        <div class="chart-card-meta"><span class="chart-card-title">Índice de precios transables vs. no transables</span><span class="chart-card-sub">Fuente: CEPALSTAT (CEPAL) — Bolivia</span></div>
-        <div class="range-btns" id="rb-trans">
-          <button class="rbtn" data-m="60">5A</button>
-          <button class="rbtn active" data-m="0">Todo</button>
+    <div class="dual-grid">
+      <div class="chart-card">
+        <div class="chart-card-top">
+          <div class="chart-card-meta"><span class="chart-card-title">Transables vs. No Transables</span><span class="chart-card-sub">Variación interanual (%) · CEPALSTAT</span></div>
+          <div class="range-btns" id="rb-trans">
+            <button class="rbtn" data-m="60">5A</button>
+            <button class="rbtn active" data-m="0">Todo</button>
+          </div>
         </div>
+        <div id="chart-transables" class="chart"><div class="loading">Cargando...</div></div>
       </div>
-      <div id="chart-transables" class="chart chart-tall"><div class="loading">Cargando...</div></div>
-    </div>
-  </section>
-
-  <!-- 07 Comparativo Regional -->
-  <section class="section">
-    <div class="section-header">
-      <span class="section-num">07</span>
-      <div class="section-titles">
-        <h2>Bolivia en la Región</h2>
-        <p>Inflación interanual comparada con países sudamericanos — Fuente: CEPALSTAT</p>
-      </div>
-    </div>
-    <div class="edu-box">
-      <span class="edu-label">¿Por qué comparar con la región?</span>
-      Comparar la inflación de Bolivia con la de sus vecinos permite evaluar si la presión de precios es un fenómeno <b>local</b> (problemas internos de oferta, política monetaria) o <b>regional</b> (precios internacionales de commodities, condiciones globales). <b>Bolivia está resaltada en rojo</b>; los demás países aparecen en gris. Haz clic en la leyenda para mostrar u ocultar países. Argentina puede estar excluida por defecto si su escala distorsiona la comparación.
-    </div>
-    <div class="chart-card">
-      <div class="chart-card-top">
-        <div class="chart-card-meta"><span class="chart-card-title">Inflación interanual (%) — Sudamérica</span><span class="chart-card-sub">Calculada como variación a 12 meses del IPC general · CEPALSTAT</span></div>
-        <div class="range-btns" id="rb-reg">
-          <button class="rbtn" data-m="36">3A</button>
-          <button class="rbtn" data-m="60">5A</button>
-          <button class="rbtn active" data-m="0">Todo</button>
+      <div class="chart-card">
+        <div class="chart-card-top">
+          <div class="chart-card-meta"><span class="chart-card-title">Bolivia en la Región</span><span class="chart-card-sub">Inflación interanual (%) · CEPALSTAT</span></div>
+          <div class="range-btns" id="rb-reg">
+            <button class="rbtn" data-m="36">3A</button>
+            <button class="rbtn" data-m="60">5A</button>
+            <button class="rbtn active" data-m="0">Todo</button>
+          </div>
         </div>
+        <div id="chart-regional" class="chart"><div class="loading">Cargando...</div></div>
       </div>
-      <div id="chart-regional" class="chart chart-xl"><div class="loading">Cargando...</div></div>
     </div>
   </section>
 
   <!-- 08 Mapa Departamental -->
   <section class="section">
     <div class="section-header">
-      <span class="section-num">08</span>
+      <span class="section-num">06</span>
       <div class="section-titles">
         <h2>Inflación por Departamento</h2>
         <p>Variación interanual del IPC por ciudad capital y conurbación — último dato disponible</p>
@@ -411,10 +437,10 @@
     </div>
   </section>
 
-  <!-- 09 Evolución por Ciudad -->
+  <!-- 07 Evolución por Ciudad -->
   <section class="section">
     <div class="section-header">
-      <span class="section-num">09</span>
+      <span class="section-num">07</span>
       <div class="section-titles">
         <h2>Evolución por Ciudad</h2>
         <p>Inflación interanual de cada ciudad capital y conurbación — series individuales</p>
@@ -422,9 +448,35 @@
     </div>
     <div class="edu-box">
       <span class="edu-label">¿Cómo interpretar estas tarjetas?</span>
-      Cada tarjeta muestra la evolución histórica de la inflación interanual en una ciudad. Tendencias divergentes entre ciudades pueden indicar <b>problemas de abastecimiento locales</b>, variaciones en el mercado inmobiliario, o diferencias en la composición del gasto. Las ciudades están ordenadas de mayor a menor inflación actual.
+      Cada tarjeta muestra la evolución histórica de la inflación interanual en una ciudad. Tendencias divergentes entre ciudades pueden indicar <b>problemas de abastecimiento locales</b>, variaciones en el mercado inmobiliario, o diferencias en la composición del gasto. Las ciudades están ordenadas de mayor a menor inflación actual. El mapa anterior extrapola estos datos de ciudades al departamento correspondiente.
     </div>
     <div class="small-multiples" id="ciudades-grid"></div>
+  </section>
+
+  <!-- 08 Productos con Mayor Variación -->
+  <section class="section">
+    <div class="section-header">
+      <span class="section-num">08</span>
+      <div class="section-titles">
+        <h2>Productos con Mayor Variación</h2>
+        <p>Los 10 productos que más subieron y bajaron de precio — variación interanual</p>
+      </div>
+    </div>
+    <div class="edu-box">
+      <span class="edu-label">¿Por qué importa?</span>
+      Los promedios esconden realidades: mientras el IPC general sube moderadamente, algunos productos pueden duplicar su precio y otros abaratarse. Esta sección muestra los <b>extremos</b> — los productos que más impactan al bolsillo. El tamaño de la barra refleja la variación porcentual; el número entre paréntesis es la <b>ponderación</b> en la canasta (qué tanto pesa ese producto en el cálculo del IPC).
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" id="productos-grid">
+      <div class="chart-card">
+        <div class="chart-card-top"><div class="chart-card-meta"><span class="chart-card-title" style="color:var(--red)">▲ Mayores subidas</span><span class="chart-card-sub">Variación interanual (%)</span></div></div>
+        <div id="chart-prod-up" class="chart chart-tall"><div class="loading">Cargando...</div></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-top"><div class="chart-card-meta"><span class="chart-card-title" style="color:var(--teal)">▼ Mayores bajadas</span><span class="chart-card-sub">Variación interanual (%)</span></div></div>
+        <div id="chart-prod-down" class="chart chart-tall"><div class="loading">Cargando...</div></div>
+      </div>
+    </div>
+    <div class="small-multiples" id="productos-hist-grid" style="margin-top:16px"></div>
   </section>
 
 </main>
@@ -435,6 +487,10 @@
     <span class="footer-brand">© <span id="foot-year"></span> <a href="https://populi.org.bo">Centro de Estudios POPULI</a></span>
   </div>
 </footer>
+
+<button class="scroll-top" id="scroll-top" title="Volver arriba">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+</button>
 
 <script>
 const PAL = ['#C71E1D','#0A9396','#D4920A','#005F73','#8B2226','#6B3F8C','#2E7D4F','#C06030','#2A7FAF'];
@@ -448,7 +504,12 @@ let charts = {};
 let G = {};
 
 const mob = () => window.innerWidth <= 520;
-const fmt = (n, d=2) => n != null ? Number(n).toFixed(d) : '—';
+
+const scrollBtn = document.getElementById('scroll-top');
+window.addEventListener('scroll', () => { scrollBtn.classList.toggle('visible', window.scrollY > 500); });
+scrollBtn.addEventListener('click', () => window.scrollTo({ top:0, behavior:'smooth' }));
+const fmt = (n, d=1) => n != null ? Number(n).toFixed(d) : '—';
+const pv = p => { const v = p.value; return typeof v === 'number' ? v : (Array.isArray(v) ? Number(v[1]) : Number(v)); };
 const fmtFecha = f => {
   if (!f) return '—';
   const M = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -469,13 +530,26 @@ function dedup(arr) {
   return arr.filter(p => { if (seen.has(p.fecha)) return false; seen.add(p.fecha); return true; });
 }
 
+function calcYoY(serie) {
+  const s = dedup(serie).sort((a,b) => a.fecha.localeCompare(b.fecha));
+  const result = [];
+  for (let i = 12; i < s.length; i++) {
+    const cur = s[i].valor, prev = s[i-12].valor;
+    if (prev && cur) result.push({ fecha: s[i].fecha, valor: ((cur/prev)-1)*100 });
+  }
+  return result;
+}
+
 function applyRange(chartKey, meses) {
   const ch = charts[chartKey];
   if (!ch) return;
   if (!meses) {
     ch.setOption({ dataZoom:[{type:'inside',start:0,end:100}] });
   } else {
-    ch.setOption({ dataZoom:[{type:'inside',start:Math.max(0,100 - meses*100/120),end:100}] });
+    const opt = ch.getOption();
+    const total = (opt.xAxis && opt.xAxis[0] && opt.xAxis[0].data) ? opt.xAxis[0].data.length : meses;
+    const pct = Math.min(100, meses * 100 / total);
+    ch.setOption({ dataZoom:[{type:'inside',start:Math.max(0, 100 - pct),end:100}] });
   }
 }
 function wireRange(btnId, chartKey) {
@@ -491,17 +565,34 @@ function wireRange(btnId, chartKey) {
 /* ── KPIs ── */
 function renderKPIs(general, nucleo) {
   const last = k => { const arr = general[k]; return arr && arr.length ? arr[arr.length-1] : null; };
+  const prev = k => { const arr = general[k]; return arr && arr.length > 1 ? arr[arr.length-2] : null; };
   const inter = last('var_interanual');
   const mens = last('var_mensual');
   const acum = last('var_acumulada');
   const idx = last('indice');
   const nuc = nucleo && nucleo.length ? nucleo[nucleo.length-1] : null;
+  const nucPrev = nucleo && nucleo.length > 1 ? nucleo[nucleo.length-2] : null;
 
   document.getElementById('kpi-inter').textContent = inter ? fmt(inter.valor) : '—';
   document.getElementById('kpi-mens').textContent = mens ? fmt(mens.valor) : '—';
   document.getElementById('kpi-acum').textContent = acum ? fmt(acum.valor) : '—';
   document.getElementById('kpi-indice').textContent = idx ? fmt(idx.valor,1) : '—';
   document.getElementById('kpi-nucleo').textContent = nuc ? fmt(nuc.valor,1) : '—';
+
+  const setTrend = (id, cur, pre, suffix='pp') => {
+    const el = document.getElementById(id);
+    if (!cur || !pre) { el.textContent = ''; return; }
+    const diff = cur.valor - pre.valor;
+    const arrow = diff > 0.05 ? '↑' : diff < -0.05 ? '↓' : '→';
+    const cls = diff > 0.05 ? 'trend-up' : diff < -0.05 ? 'trend-down' : 'trend-flat';
+    el.className = 'kpi-trend ' + cls;
+    el.textContent = `${arrow} ${diff>=0?'+':''}${diff.toFixed(1)} ${suffix} vs. mes ant.`;
+  };
+  setTrend('kpi-inter-trend', inter, prev('var_interanual'));
+  setTrend('kpi-mens-trend', mens, prev('var_mensual'));
+  setTrend('kpi-acum-trend', acum, prev('var_acumulada'));
+  setTrend('kpi-indice-trend', idx, prev('indice'), 'pts');
+  setTrend('kpi-nucleo-trend', nuc ? {valor:nuc.valor} : null, nucPrev ? {valor:nucPrev.valor} : null, 'pts');
 
   const fecha = inter ? inter.fecha : (idx ? idx.fecha : null);
   document.getElementById('kpi-periodo').textContent = fecha ? `Datos a ${fmtFecha(fecha)}` : '';
@@ -518,8 +609,18 @@ function renderIPC(general) {
 
   ch.setOption({
     backgroundColor:'transparent',
-    tooltip:{ trigger:'axis', ...tipBase(), axisPointer:{lineStyle:{color:'rgba(199,30,29,.3)',width:1.5,type:'dashed'}} },
-    legend:{ data:['Mensual','Acumulada','Interanual (12m)'], textStyle:{color:c.leg,fontSize:mob()?10:12,fontFamily:'Inter'}, icon:'roundRect',itemWidth:10,itemHeight:4,top:2,right:4 },
+    tooltip:{ trigger:'axis', ...tipBase(), axisPointer:{lineStyle:{color:'rgba(199,30,29,.3)',width:1.5,type:'dashed'}},
+      formatter:params => {
+        if(!params.length) return '';
+        let html = `<div style="font-weight:700;margin-bottom:6px;font-size:11px;color:#7AA8C0">${fmtFecha(params[0].axisValue)}</div>`;
+        params.forEach(p => {
+          if(pv(p)==null||isNaN(pv(p))) return;
+          html += `<div style="display:flex;align-items:center;gap:6px;line-height:1.7;font-size:11.5px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span style="color:#A0B8C8">${p.seriesName}</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;color:#D0E4F0">${pv(p)>=0?'+':''}${pv(p).toFixed(1)}%</span></div>`;
+        });
+        return html;
+      }
+    },
+    legend:{ data:['Mensual','Acumulada','Interanual (12m)','Meta PGE 2026 (14%)'], textStyle:{color:c.leg,fontSize:mob()?9:11,fontFamily:'Inter'}, icon:'roundRect',itemWidth:10,itemHeight:4,top:2,right:4 },
     grid:{ left:12,right:12,top:44,bottom:40,containLabel:true },
     xAxis:{ type:'category', data:inter.map(p=>p.fecha), axisLabel:{formatter:f=>fmtFecha(f),fontSize:11,color:c.axis,fontFamily:'Inter',rotate:mob()?45:0}, axisLine:{lineStyle:{color:c.grid}}, splitLine:{show:false} },
     yAxis:{ type:'value',name:'%',nameTextStyle:{color:c.axis,fontSize:10},axisLabel:{formatter:v=>v.toFixed(1),fontSize:11,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false} },
@@ -528,6 +629,7 @@ function renderIPC(general) {
       { name:'Mensual',type:'line',data:mens.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:1.5,color:'#D4920A',type:'dashed'},itemStyle:{color:'#D4920A'},smooth:.3 },
       { name:'Acumulada',type:'line',data:acum.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2,color:'#0A9396'},itemStyle:{color:'#0A9396'},smooth:.3, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(10,147,150,.12)'},{offset:1,color:'rgba(10,147,150,0)'}]}} },
       { name:'Interanual (12m)',type:'line',data:inter.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2.5,color:'#C71E1D'},itemStyle:{color:'#C71E1D'},smooth:.3,z:5, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(199,30,29,.15)'},{offset:1,color:'rgba(199,30,29,0)'}]}} },
+      { name:'Meta PGE 2026 (14%)',type:'line',data:inter.map(p=>[p.fecha,14]),symbol:'none',lineStyle:{width:1.5,color:'#6B3F8C',type:[6,4]},itemStyle:{color:'#6B3F8C'},z:1 },
     ]
   });
   wireRange('rb-ipc','ipc');
@@ -581,16 +683,16 @@ function renderDivisiones3(divisiones) {
         if(!params.length) return '';
         const p = params[0];
         const col = p.value>=0?'#C71E1D':'#0A9396';
-        return `<div style="font-weight:700;margin-bottom:4px;font-size:11px;color:#7AA8C0">${p.name}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:${col}">${p.value>=0?'+':''}${p.value.toFixed(2)}%</div>`;
+        return `<div style="font-weight:700;margin-bottom:4px;font-size:11px;color:#7AA8C0">${p.name}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:${col}">${pv(p)>=0?'+':''}${pv(p).toFixed(1)}%</div>`;
       }},
-      grid:{ left:12,right:16,top:8,bottom:10,containLabel:true },
+      grid:{ left:mob()?90:170,right:16,top:8,bottom:28,containLabel:false },
       xAxis:{ type:'value',name:'%',nameTextStyle:{color:c.axis,fontSize:9},axisLabel:{fontSize:10,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false} },
-      yAxis:{ type:'category',data:items.map(i=>i.name),axisLabel:{fontSize:mob()?8:10,color:c.axis,fontFamily:'Inter',width:mob()?80:160,overflow:'truncate'},axisLine:{show:false},axisTick:{show:false} },
+      yAxis:{ type:'category',data:items.map(i=>i.name),axisLabel:{fontSize:mob()?7.5:9.5,color:c.axis,fontFamily:'Inter',width:mob()?82:162,overflow:'truncate',lineHeight:12},axisLine:{show:false},axisTick:{show:false} },
       series:[{
-        type:'bar',data:items.map(i=>i[mt.key]),barWidth:mob()?6:9,
+        type:'bar',data:items.map(i=>i[mt.key]),barWidth:mob()?8:12,
         itemStyle:{
           color:p => p.value >= 0 ? mt.color : (mt.key==='interanual'?'#0A9396':mt.color+'88'),
-          borderRadius:[0,3,3,0]
+          borderRadius:p => p.value >= 0 ? [0,3,3,0] : [3,0,0,3]
         },
         emphasis:{ itemStyle:{shadowBlur:8,shadowColor:'rgba(0,0,0,.2)'} }
       }]
@@ -620,28 +722,32 @@ function renderDivisionesGrid(divisiones) {
 
   const c = ct();
   entries.forEach((e, idx) => {
+    const yoy = calcYoY(e.serie);
+    if (yoy.length < 2) return;
     const card = document.createElement('div');
     card.className = 'sm-card';
     const color = DIV_COLORS[idx % DIV_COLORS.length];
     const sign = e.inter >= 0 ? '+' : '';
     const valCol = e.inter >= 0 ? '#C71E1D' : '#0A9396';
-    card.innerHTML = `<div class="sm-header"><span class="sm-title" style="font-size:10.5px">${e.nombre}</span><span class="sm-val" style="color:${valCol}">${sign}${e.inter.toFixed(2)}%</span></div><div class="sm-sub">Índice · Var. interanual 12m</div><div class="sm-chart" id="sm-div-${idx}"></div>`;
+    card.innerHTML = `<div class="sm-header"><span class="sm-title" style="font-size:10.5px">${e.nombre}</span><span class="sm-val" style="color:${valCol}">${sign}${e.inter.toFixed(1)}%</span></div><div class="sm-sub">Var. interanual 12m (%)</div><div class="sm-chart" id="sm-div-${idx}"></div>`;
     grid.appendChild(card);
 
     const chartEl = card.querySelector('.sm-chart');
     const ch = echarts.init(chartEl);
     charts._smDivisiones.push(ch);
 
+    const lastYoY = yoy[yoy.length-1];
     ch.setOption({
       backgroundColor:'transparent',
-      tooltip:{ trigger:'axis', ...tipBase(), formatter:p => { if(!p.length)return''; return `<div style="font-size:11px;color:#7AA8C0">${fmtFecha(p[0].axisValue)}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#D0E4F0">${Number(p[0].value).toFixed(2)}</div>`; }, axisPointer:{lineStyle:{color:'rgba(199,30,29,.2)',type:'dashed'}} },
+      tooltip:{ trigger:'axis', ...tipBase(), formatter:p => { if(!p.length)return''; const v=Number(p[0].value); return `<div style="font-size:11px;color:#7AA8C0">${fmtFecha(p[0].axisValue)}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:${v>=0?'#C71E1D':'#0A9396'}">${v>=0?'+':''}${v.toFixed(1)}%</div>`; }, axisPointer:{lineStyle:{color:'rgba(199,30,29,.2)',type:'dashed'}} },
       grid:{ left:4,right:4,top:6,bottom:4,containLabel:true },
-      xAxis:{ type:'category', data:e.serie.map(p=>p.fecha), show:false },
-      yAxis:{ type:'value', show:false, min:v=>Math.floor(v.min*0.995) },
+      xAxis:{ type:'category', data:yoy.map(p=>p.fecha), show:false },
+      yAxis:{ type:'value', show:false },
       series:[{
-        type:'line', data:e.serie.map(p=>p.valor), symbol:'none', smooth:.3,
+        type:'line', data:yoy.map(p=>p.valor), symbol:'none', smooth:.3,
         lineStyle:{width:2,color}, itemStyle:{color},
-        areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:color+'30'},{offset:1,color:color+'05'}]}}
+        areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:color+'30'},{offset:1,color:color+'05'}]}},
+        markPoint:{ data:[{coord:[lastYoY.fecha, lastYoY.valor]}], symbol:'circle', symbolSize:7, itemStyle:{color,borderColor:'#fff',borderWidth:1.5}, label:{show:false} }
       }]
     });
   });
@@ -652,57 +758,9 @@ function renderAlimentos(alimentos) {
   const el = document.getElementById('chart-alimentos'); el.innerHTML = '';
   const ch = echarts.init(el); charts.alimentos = ch;
   const c = ct();
-  const ali = dedup(alimentos.alimentos||[]);
-  const noAli = dedup(alimentos.no_alimentos||[]);
-  const fechas = ali.map(p=>p.fecha);
-
-  ch.setOption({
-    backgroundColor:'transparent',
-    tooltip:{ trigger:'axis', ...tipBase(), axisPointer:{lineStyle:{color:'rgba(199,30,29,.3)',width:1.5,type:'dashed'}} },
-    legend:{ data:['Alimentos','No Alimentos'], textStyle:{color:c.leg,fontSize:12,fontFamily:'Inter'}, icon:'roundRect',itemWidth:10,itemHeight:4,top:2,right:4 },
-    grid:{ left:12,right:12,top:44,bottom:40,containLabel:true },
-    xAxis:{ type:'category',data:fechas,axisLabel:{formatter:f=>fmtFecha(f),fontSize:11,color:c.axis,rotate:mob()?45:0},axisLine:{lineStyle:{color:c.grid}},splitLine:{show:false} },
-    yAxis:{ type:'value',name:'Índice',nameTextStyle:{color:c.axis,fontSize:10},axisLabel:{fontSize:11,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false},min:v=>Math.floor(v.min) },
-    dataZoom:[{type:'inside'}],
-    series:[
-      { name:'Alimentos',type:'line',data:ali.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2.5,color:'#C71E1D'},itemStyle:{color:'#C71E1D'},smooth:.3, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(199,30,29,.12)'},{offset:1,color:'rgba(199,30,29,0)'}]}} },
-      { name:'No Alimentos',type:'line',data:noAli.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2,color:'#0A9396'},itemStyle:{color:'#0A9396'},smooth:.3, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(10,147,150,.1)'},{offset:1,color:'rgba(10,147,150,0)'}]}} },
-    ]
-  });
-  wireRange('rb-ali','alimentos');
-}
-
-/* ── Núcleo ── */
-function renderNucleo(general, nucleo) {
-  const el = document.getElementById('chart-nucleo'); el.innerHTML = '';
-  const ch = echarts.init(el); charts.nucleo = ch;
-  const c = ct();
-  const idx = dedup(general.indice||[]);
-  const nuc = dedup(nucleo||[]);
-
-  ch.setOption({
-    backgroundColor:'transparent',
-    tooltip:{ trigger:'axis', ...tipBase(), axisPointer:{lineStyle:{color:'rgba(139,34,38,.3)',width:1.5,type:'dashed'}} },
-    legend:{ data:['IPC General','Inflación Núcleo'], textStyle:{color:c.leg,fontSize:12,fontFamily:'Inter'}, icon:'roundRect',itemWidth:10,itemHeight:4,top:2,right:4 },
-    grid:{ left:12,right:12,top:44,bottom:40,containLabel:true },
-    xAxis:{ type:'category',data:idx.map(p=>p.fecha),axisLabel:{formatter:f=>fmtFecha(f),fontSize:11,color:c.axis,rotate:mob()?45:0},axisLine:{lineStyle:{color:c.grid}},splitLine:{show:false} },
-    yAxis:{ type:'value',name:'Índice',nameTextStyle:{color:c.axis,fontSize:10},axisLabel:{fontSize:11,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false},min:v=>Math.floor(v.min) },
-    dataZoom:[{type:'inside'}],
-    series:[
-      { name:'IPC General',type:'line',data:idx.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2.5,color:'#C71E1D'},itemStyle:{color:'#C71E1D'},smooth:.3, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(199,30,29,.12)'},{offset:1,color:'rgba(199,30,29,0)'}]}} },
-      { name:'Inflación Núcleo',type:'line',data:nuc.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2,color:'#8B2226',type:'dashed'},itemStyle:{color:'#8B2226'},smooth:.3 },
-    ]
-  });
-}
-
-/* ── Transables vs No Transables ── */
-function renderTransables(transables) {
-  const el = document.getElementById('chart-transables'); el.innerHTML = '';
-  const ch = echarts.init(el); charts.transables = ch;
-  const c = ct();
-  const t = dedup(transables.transables||[]);
-  const nt = dedup(transables.no_transables||[]);
-  const allFechas = [...new Set([...t.map(p=>p.fecha),...nt.map(p=>p.fecha)])].sort();
+  const aliYoY = calcYoY(alimentos.alimentos||[]);
+  const noAliYoY = calcYoY(alimentos.no_alimentos||[]);
+  const allFechas = [...new Set([...aliYoY.map(p=>p.fecha),...noAliYoY.map(p=>p.fecha)])].sort();
 
   ch.setOption({
     backgroundColor:'transparent',
@@ -711,24 +769,116 @@ function renderTransables(transables) {
         if(!params.length) return '';
         let html = `<div style="font-weight:700;margin-bottom:6px;font-size:11px;color:#7AA8C0">${fmtFecha(params[0].axisValue)}</div>`;
         params.forEach(p => {
-          html += `<div style="display:flex;align-items:center;gap:6px;line-height:1.7;font-size:11.5px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span style="color:#A0B8C8">${p.seriesName}</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;color:#D0E4F0">${Number(p.value).toFixed(2)}</span></div>`;
+          if(pv(p)==null||isNaN(pv(p))) return;
+          html += `<div style="display:flex;align-items:center;gap:6px;line-height:1.7;font-size:11.5px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span style="color:#A0B8C8">${p.seriesName}</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;color:#D0E4F0">${pv(p)>=0?'+':''}${pv(p).toFixed(1)}%</span></div>`;
         });
-        if(params.length===2) {
-          const diff = params[0].value - params[1].value;
+        if(params.length===2 && !isNaN(pv(params[0])) && !isNaN(pv(params[1]))) {
+          const diff = pv(params[0]) - pv(params[1]);
           const col = diff>=0?'#C71E1D':'#0A9396';
-          html += `<div style="border-top:1px solid rgba(255,255,255,.1);margin-top:6px;padding-top:6px;font-size:10.5px;color:${col}">Brecha: ${diff>=0?'+':''}${diff.toFixed(2)} pts</div>`;
+          html += `<div style="border-top:1px solid rgba(255,255,255,.1);margin-top:6px;padding-top:6px;font-size:10.5px;color:${col}">Brecha: ${diff>=0?'+':''}${diff.toFixed(1)} pp</div>`;
         }
         return html;
       }
     },
-    legend:{ data:['Transables','No Transables'], textStyle:{color:c.leg,fontSize:12,fontFamily:'Inter'}, icon:'roundRect',itemWidth:10,itemHeight:4,top:2,right:4 },
-    grid:{ left:12,right:12,top:44,bottom:40,containLabel:true },
-    xAxis:{ type:'category',data:allFechas,axisLabel:{formatter:f=>fmtFecha(f),fontSize:11,color:c.axis,rotate:mob()?45:0},axisLine:{lineStyle:{color:c.grid}},splitLine:{show:false} },
-    yAxis:{ type:'value',name:'Índice',nameTextStyle:{color:c.axis,fontSize:10},axisLabel:{fontSize:11,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false},min:v=>Math.floor(v.min) },
+    legend:{ data:['Alimentos','No Alimentos'], textStyle:{color:c.leg,fontSize:mob()?9:11,fontFamily:'Inter'}, icon:'roundRect',itemWidth:8,itemHeight:3,top:0,right:0 },
+    grid:{ left:8,right:8,top:32,bottom:10,containLabel:true },
+    xAxis:{ type:'category',data:allFechas,axisLabel:{formatter:f=>fmtFecha(f),fontSize:mob()?9:10,color:c.axis,rotate:45,hideOverlap:true},axisLine:{lineStyle:{color:c.grid}},splitLine:{show:false} },
+    yAxis:{ type:'value',name:'%',nameTextStyle:{color:c.axis,fontSize:10},axisLabel:{formatter:v=>v.toFixed(1)+'%',fontSize:11,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false} },
     dataZoom:[{type:'inside'}],
     series:[
-      { name:'Transables',type:'line',data:t.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2.5,color:'#D4920A'},itemStyle:{color:'#D4920A'},smooth:.3, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(212,146,10,.12)'},{offset:1,color:'rgba(212,146,10,0)'}]}} },
-      { name:'No Transables',type:'line',data:nt.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2,color:'#005F73'},itemStyle:{color:'#005F73'},smooth:.3, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(0,95,115,.1)'},{offset:1,color:'rgba(0,95,115,0)'}]}} },
+      { name:'Alimentos',type:'line',data:aliYoY.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2.5,color:'#C71E1D'},itemStyle:{color:'#C71E1D'},smooth:.3, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(199,30,29,.12)'},{offset:1,color:'rgba(199,30,29,0)'}]}} },
+      { name:'No Alimentos',type:'line',data:noAliYoY.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2,color:'#0A9396'},itemStyle:{color:'#0A9396'},smooth:.3, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(10,147,150,.1)'},{offset:1,color:'rgba(10,147,150,0)'}]}} },
+    ]
+  });
+  wireRange('rb-ali','alimentos');
+}
+
+/* ── Descomposición (Núcleo / Alimentos / Energía) ── */
+function renderNucleo(general, nucleo, descomp) {
+  const el = document.getElementById('chart-nucleo'); el.innerHTML = '';
+  const ch = echarts.init(el); charts.nucleo = ch;
+  const c = ct();
+
+  const lines = [
+    { key:'general', name:'General', color:'#C71E1D', width:2.5, area:true },
+    { key:'nucleo', name:'Núcleo', color:'#005F73', width:2, dash:false },
+    { key:'alimentos', name:'Alimentos', color:'#D4920A', width:1.8, dash:false },
+    { key:'energia', name:'Energía', color:'#8B2226', width:1.8, dash:true },
+  ];
+
+  const yoys = {};
+  const src = descomp || {};
+  lines.forEach(l => {
+    const raw = src[l.key] || (l.key==='general' ? general.indice : (l.key==='nucleo' ? nucleo : null));
+    if (raw) yoys[l.key] = calcYoY(raw);
+  });
+  const allFechas = [...new Set(Object.values(yoys).flatMap(s=>s.map(p=>p.fecha)))].sort();
+
+  const series = lines.filter(l => yoys[l.key]?.length).map(l => {
+    const s = { name:l.name,type:'line',data:yoys[l.key].map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:l.width,color:l.color},itemStyle:{color:l.color},smooth:.3 };
+    if (l.dash) s.lineStyle.type = 'dashed';
+    if (l.area) s.areaStyle = {color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:l.color+'20'},{offset:1,color:l.color+'00'}]}};
+    return s;
+  });
+
+  ch.setOption({
+    backgroundColor:'transparent',
+    tooltip:{ trigger:'axis', ...tipBase(), axisPointer:{lineStyle:{color:'rgba(139,34,38,.3)',width:1.5,type:'dashed'}},
+      formatter:params => {
+        if(!params.length) return '';
+        let html = `<div style="font-weight:700;margin-bottom:6px;font-size:11px;color:#7AA8C0">${fmtFecha(params[0].axisValue)}</div>`;
+        params.forEach(p => {
+          if(pv(p)==null||isNaN(pv(p))) return;
+          html += `<div style="display:flex;align-items:center;gap:6px;line-height:1.7;font-size:11px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span style="color:#A0B8C8">${p.seriesName}</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;color:#D0E4F0">${pv(p)>=0?'+':''}${pv(p).toFixed(1)}%</span></div>`;
+        });
+        return html;
+      }
+    },
+    legend:{ data:lines.filter(l=>yoys[l.key]?.length).map(l=>l.name), textStyle:{color:c.leg,fontSize:mob()?8:10,fontFamily:'Inter'}, icon:'roundRect',itemWidth:8,itemHeight:3,top:0,right:0,itemGap:6 },
+    grid:{ left:8,right:8,top:32,bottom:10,containLabel:true },
+    xAxis:{ type:'category',data:allFechas,axisLabel:{formatter:f=>fmtFecha(f),fontSize:mob()?9:10,color:c.axis,rotate:45,hideOverlap:true},axisLine:{lineStyle:{color:c.grid}},splitLine:{show:false} },
+    yAxis:{ type:'value',name:'%',nameTextStyle:{color:c.axis,fontSize:10},axisLabel:{formatter:v=>v.toFixed(1)+'%',fontSize:mob()?9:10,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false} },
+    dataZoom:[{type:'inside'}],
+    series
+  });
+  wireRange('rb-nuc','nucleo');
+}
+
+/* ── Transables vs No Transables ── */
+function renderTransables(transables) {
+  const el = document.getElementById('chart-transables'); el.innerHTML = '';
+  const ch = echarts.init(el); charts.transables = ch;
+  const c = ct();
+  const tYoY = calcYoY(transables.transables||[]);
+  const ntYoY = calcYoY(transables.no_transables||[]);
+  const allFechas = [...new Set([...tYoY.map(p=>p.fecha),...ntYoY.map(p=>p.fecha)])].sort();
+
+  ch.setOption({
+    backgroundColor:'transparent',
+    tooltip:{ trigger:'axis', ...tipBase(), axisPointer:{lineStyle:{color:'rgba(199,30,29,.3)',width:1.5,type:'dashed'}},
+      formatter:params => {
+        if(!params.length) return '';
+        let html = `<div style="font-weight:700;margin-bottom:6px;font-size:11px;color:#7AA8C0">${fmtFecha(params[0].axisValue)}</div>`;
+        params.forEach(p => {
+          if(pv(p)==null||isNaN(pv(p))) return;
+          html += `<div style="display:flex;align-items:center;gap:6px;line-height:1.7;font-size:11.5px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span style="color:#A0B8C8">${p.seriesName}</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;color:#D0E4F0">${pv(p)>=0?'+':''}${pv(p).toFixed(1)}%</span></div>`;
+        });
+        if(params.length===2 && !isNaN(pv(params[0])) && !isNaN(pv(params[1]))) {
+          const diff = pv(params[0]) - pv(params[1]);
+          const col = diff>=0?'#C71E1D':'#0A9396';
+          html += `<div style="border-top:1px solid rgba(255,255,255,.1);margin-top:6px;padding-top:6px;font-size:10.5px;color:${col}">Brecha: ${diff>=0?'+':''}${diff.toFixed(1)} pp</div>`;
+        }
+        return html;
+      }
+    },
+    legend:{ data:['Transables','No Transables'], textStyle:{color:c.leg,fontSize:mob()?9:11,fontFamily:'Inter'}, icon:'roundRect',itemWidth:8,itemHeight:3,top:0,right:0 },
+    grid:{ left:8,right:8,top:32,bottom:10,containLabel:true },
+    xAxis:{ type:'category',data:allFechas,axisLabel:{formatter:f=>fmtFecha(f),fontSize:mob()?9:10,color:c.axis,rotate:45,hideOverlap:true},axisLine:{lineStyle:{color:c.grid}},splitLine:{show:false} },
+    yAxis:{ type:'value',name:'%',nameTextStyle:{color:c.axis,fontSize:10},axisLabel:{formatter:v=>v.toFixed(1)+'%',fontSize:mob()?9:10,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false} },
+    dataZoom:[{type:'inside'}],
+    series:[
+      { name:'Transables',type:'line',data:tYoY.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2.5,color:'#D4920A'},itemStyle:{color:'#D4920A'},smooth:.3, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(212,146,10,.12)'},{offset:1,color:'rgba(212,146,10,0)'}]}} },
+      { name:'No Transables',type:'line',data:ntYoY.map(p=>[p.fecha,p.valor]),symbol:'none',lineStyle:{width:2,color:'#005F73'},itemStyle:{color:'#005F73'},smooth:.3, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(0,95,115,.1)'},{offset:1,color:'rgba(0,95,115,0)'}]}} },
     ]
   });
   wireRange('rb-trans','transables');
@@ -807,20 +957,20 @@ function renderRegional(regional) {
       formatter:params => {
         if(!params.length) return '';
         let html = `<div style="font-weight:700;margin-bottom:6px;font-size:11px;color:#7AA8C0">${fmtFecha(params[0].axisValue)}</div>`;
-        const sorted = [...params].filter(p=>p.value!=null).sort((a,b)=>b.value-a.value);
+        const sorted = [...params].filter(p=>!isNaN(pv(p))).sort((a,b)=>b.value-a.value);
         sorted.forEach(p => {
           const isBol = p.seriesName==='Bolivia';
           const col = isBol?'#C71E1D':'#A0B8C8';
           const weight = isBol?'font-weight:700;':'';
-          html += `<div style="display:flex;align-items:center;gap:6px;line-height:1.7;font-size:11px;${weight}"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span style="color:${col}">${p.seriesName}</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;color:${isBol?'#C71E1D':'#D0E4F0'}">${p.value>=0?'+':''}${Number(p.value).toFixed(1)}%</span></div>`;
+          html += `<div style="display:flex;align-items:center;gap:6px;line-height:1.7;font-size:11px;${weight}"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span style="color:${col}">${p.seriesName}</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;color:${isBol?'#C71E1D':'#D0E4F0'}">${pv(p)>=0?'+':''}${pv(p).toFixed(1)}%</span></div>`;
         });
         return html;
       }
     },
-    legend:{ data:legendData, selected, textStyle:{color:c.leg,fontSize:mob()?9:11,fontFamily:'Inter'}, icon:'roundRect',itemWidth:10,itemHeight:4,top:2,right:4 },
-    grid:{ left:12,right:12,top:44,bottom:40,containLabel:true },
-    xAxis:{ type:'category',data:allFechas,axisLabel:{formatter:f=>fmtFecha(f),fontSize:11,color:c.axis,rotate:mob()?45:0},axisLine:{lineStyle:{color:c.grid}},splitLine:{show:false} },
-    yAxis:{ type:'value',name:'%',nameTextStyle:{color:c.axis,fontSize:10},axisLabel:{formatter:v=>v.toFixed(0)+'%',fontSize:11,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false} },
+    legend:{ data:legendData, selected, textStyle:{color:c.leg,fontSize:mob()?8:10,fontFamily:'Inter'}, icon:'roundRect',itemWidth:8,itemHeight:3,top:0,right:0,itemGap:8 },
+    grid:{ left:8,right:8,top:36,bottom:10,containLabel:true },
+    xAxis:{ type:'category',data:allFechas,axisLabel:{formatter:f=>fmtFecha(f),fontSize:mob()?9:10,color:c.axis,rotate:45,hideOverlap:true},axisLine:{lineStyle:{color:c.grid}},splitLine:{show:false} },
+    yAxis:{ type:'value',name:'%',nameTextStyle:{color:c.axis,fontSize:10},axisLabel:{formatter:v=>v.toFixed(1)+'%',fontSize:mob()?9:10,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false} },
     dataZoom:[{type:'inside'}],
     series
   });
@@ -861,7 +1011,7 @@ function renderMapa(ciudades, geoJson, ciudadesTop) {
   tbody.innerHTML = ranking.map((r,i) => {
     const col = r.valor >= 0 ? 'up' : 'down';
     const sign = r.valor >= 0 ? '+' : '';
-    return `<tr><td style="font-weight:600;font-size:12px">${r.ciudad}</td><td style="font-size:11px;color:var(--muted)">${r.depto}</td><td style="text-align:right" class="mono ${col}">${sign}${r.valor.toFixed(2)}%</td></tr>`;
+    return `<tr><td style="font-weight:600;font-size:12px">${r.ciudad}</td><td style="font-size:11px;color:var(--muted)">${r.depto}</td><td style="text-align:right" class="mono ${col}">${sign}${r.valor.toFixed(1)}%</td></tr>`;
   }).join('');
 
   if (ranking.length) {
@@ -875,9 +1025,9 @@ function renderMapa(ciudades, geoJson, ciudadesTop) {
   ch.setOption({
     backgroundColor:'transparent',
     tooltip:{ trigger:'item', ...tipBase(), extraCssText:'box-shadow:0 8px 28px rgba(0,0,0,.45);border-radius:10px;padding:14px 18px;max-width:320px', formatter:p => {
-      if(p.value==null) return `<b>${p.name}</b><br/>Sin datos`;
+      if(pv(p)==null||isNaN(pv(p))) return `<b>${p.name}</b><br/>Sin datos`;
       const col = p.value>=0?'#C71E1D':'#0A9396';
-      let html = `<div style="font-weight:700;margin-bottom:6px;color:#7AA8C0;font-size:13px">${p.name}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;color:${col};margin-bottom:4px">${p.value>=0?'+':''}${p.value.toFixed(2)}%</div><div style="font-size:10px;color:#5A7A8C;margin-bottom:8px">Inflación interanual</div>`;
+      let html = `<div style="font-weight:700;margin-bottom:6px;color:#7AA8C0;font-size:13px">${p.name}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;color:${col};margin-bottom:4px">${pv(p)>=0?'+':''}${pv(p).toFixed(1)}%</div><div style="font-size:10px;color:#5A7A8C;margin-bottom:8px">Inflación interanual</div>`;
       const top = deptoTop[p.name];
       if (top) {
         const renderList = (items, label, color) => {
@@ -900,7 +1050,7 @@ function renderMapa(ciudades, geoJson, ciudadesTop) {
     },
     series:[{
       type:'map', map:'bolivia',
-      roam:true, zoom:1.2, aspectScale:0.88,
+      roam:true, zoom:1.15, aspectScale:0.82,
       center:[-64.5,-16.5],
       data:mapData,
       nameMap:{'LaPaz':'La Paz','SantaCruz':'Santa Cruz'},
@@ -908,6 +1058,70 @@ function renderMapa(ciudades, geoJson, ciudadesTop) {
       itemStyle:{ borderColor:dark?'#333':'#fff', borderWidth:1.5, areaColor:dark?'#1a1a1a':'#E8EDF2' },
       emphasis:{ label:{fontSize:12,fontWeight:700,color:dark?'#fff':'#000'}, itemStyle:{areaColor:'#D4920A',borderWidth:2} },
     }]
+  });
+}
+
+/* ── Productos ── */
+function renderProductos(productos, productosHist) {
+  const c = ct();
+  const renderBar = (elId, items, color, key) => {
+    const el = document.getElementById(elId); el.innerHTML = '';
+    const ch = echarts.init(el); charts[key] = ch;
+    const top10 = items.slice(0, 10).reverse();
+    const names = top10.map(p => p.producto.length > 28 ? p.producto.slice(0,26)+'…' : p.producto);
+    const vals = top10.map(p => p.var_interanual);
+    const ponds = top10.map(p => p.ponderacion);
+    const allPositive = vals.every(v => v >= 0);
+    const allNegative = vals.every(v => v < 0);
+    ch.setOption({
+      backgroundColor:'transparent',
+      tooltip:{ trigger:'axis', ...tipBase(), formatter:params => {
+        if(!params.length) return '';
+        const i = params[0].dataIndex;
+        const item = top10[i];
+        const col = item.var_interanual >= 0 ? '#C71E1D' : '#0A9396';
+        return `<div style="font-weight:700;margin-bottom:4px;font-size:11px;color:#7AA8C0">${item.producto}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:${col}">${item.var_interanual >= 0?'+':''}${item.var_interanual.toFixed(1)}%</div><div style="font-size:10.5px;color:#5A7A8C;margin-top:4px">Ponderación: ${item.ponderacion.toFixed(3)}%</div>`;
+      }},
+      grid:{ left:mob()?90:170,right:mob()?60:90,top:8,bottom:28,containLabel:false },
+      xAxis:{ type:'value',name:'%',nameTextStyle:{color:c.axis,fontSize:9},axisLabel:{fontSize:10,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false} },
+      yAxis:{ type:'category',data:names,axisLabel:{fontSize:mob()?8:10,color:c.axis,fontFamily:'Inter',width:mob()?82:162,overflow:'truncate'},axisLine:{show:false},axisTick:{show:false} },
+      series:[{
+        type:'bar',data:vals,barWidth:mob()?10:14,
+        itemStyle:{ color, borderRadius:p => p.value >= 0 ? [0,3,3,0] : [3,0,0,3] },
+        label:{ show:true,position:allPositive?'right':allNegative?'left':(p=>p.value>=0?'right':'left'),fontSize:mob()?9:11,fontFamily:'IBM Plex Mono',color:c.text,formatter:p=>(pv(p)>=0?'+':'')+pv(p).toFixed(1)+'%' }
+      }]
+    });
+  };
+  renderBar('chart-prod-up', productos.top_subidas||[], '#C71E1D', 'prodUp');
+  renderBar('chart-prod-down', productos.top_bajadas||[], '#0A9396', 'prodDown');
+
+  if (!productosHist) return;
+  const grid = document.getElementById('productos-hist-grid');
+  grid.innerHTML = '';
+  if (charts._smProductos) charts._smProductos.forEach(c => c.dispose());
+  charts._smProductos = [];
+
+  const topNames = [...(productos.top_subidas||[]).slice(0,5), ...(productos.top_bajadas||[]).slice(0,3)];
+  topNames.forEach((item, idx) => {
+    const serie = productosHist[item.producto];
+    if (!serie || serie.length < 2) return;
+    const card = document.createElement('div');
+    card.className = 'sm-card';
+    const color = item.var_interanual >= 0 ? '#C71E1D' : '#0A9396';
+    const sign = item.var_interanual >= 0 ? '+' : '';
+    card.innerHTML = `<div class="sm-header"><span class="sm-title" style="font-size:10.5px">${item.producto}</span><span class="sm-val" style="color:${color}">${sign}${item.var_interanual.toFixed(1)}%</span></div><div class="sm-sub">Índice (Base 2016=100) · Pond. ${item.ponderacion.toFixed(2)}%</div><div class="sm-chart" id="sm-prod-${idx}"></div>`;
+    grid.appendChild(card);
+
+    const ch = echarts.init(card.querySelector('.sm-chart'));
+    charts._smProductos.push(ch);
+    ch.setOption({
+      backgroundColor:'transparent',
+      tooltip:{ trigger:'axis', ...tipBase(), formatter:p => { if(!p.length)return''; return `<div style="font-size:11px;color:#7AA8C0">${fmtFecha(p[0].axisValue)}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#D0E4F0">${pv(p[0]).toFixed(1)}</div><div style="font-size:9px;color:#5A7A8C">Índice Base 2016=100</div>`; }, axisPointer:{lineStyle:{color:'rgba(199,30,29,.2)',type:'dashed'}} },
+      grid:{ left:4,right:4,top:6,bottom:4,containLabel:true },
+      xAxis:{ type:'category', data:serie.map(p=>p.fecha), show:false },
+      yAxis:{ type:'value', show:false, min:v=>Math.floor(v.min*0.99) },
+      series:[{ type:'line', data:serie.map(p=>p.valor), symbol:'none', smooth:.3, lineStyle:{width:2,color}, itemStyle:{color}, areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:color+'30'},{offset:1,color:color+'05'}]}}, markPoint:{ data:[{coord:[serie[serie.length-1].fecha, serie[serie.length-1].valor]}], symbol:'circle', symbolSize:7, itemStyle:{color,borderColor:'#fff',borderWidth:1.5}, label:{show:false} } }]
+    });
   });
 }
 
@@ -936,7 +1150,7 @@ function renderCiudadesGrid(ciudades) {
     const color = CITY_COLORS[e.depto] || PAL[idx % PAL.length];
     const sign = e.lastVal >= 0 ? '+' : '';
     const valCol = e.lastVal >= 0 ? '#C71E1D' : '#0A9396';
-    card.innerHTML = `<div class="sm-header"><span class="sm-title">${e.ciudad}</span><span class="sm-val" style="color:${valCol}">${sign}${e.lastVal.toFixed(2)}%</span></div><div class="sm-sub">${e.depto} · Var. interanual</div><div class="sm-chart" id="sm-city-${idx}"></div>`;
+    card.innerHTML = `<div class="sm-header"><span class="sm-title">${e.ciudad}</span><span class="sm-val" style="color:${valCol}">${sign}${e.lastVal.toFixed(1)}%</span></div><div class="sm-sub">${e.depto} · Var. interanual</div><div class="sm-chart" id="sm-city-${idx}"></div>`;
     grid.appendChild(card);
 
     const chartEl = card.querySelector('.sm-chart');
@@ -945,26 +1159,172 @@ function renderCiudadesGrid(ciudades) {
 
     ch.setOption({
       backgroundColor:'transparent',
-      tooltip:{ trigger:'axis', ...tipBase(), formatter:p => { if(!p.length)return''; return `<div style="font-size:11px;color:#7AA8C0">${fmtFecha(p[0].axisValue)}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:${p[0].value>=0?'#C71E1D':'#0A9396'}">${p[0].value>=0?'+':''}${Number(p[0].value).toFixed(2)}%</div>`; }, axisPointer:{lineStyle:{color:'rgba(199,30,29,.2)',type:'dashed'}} },
+      tooltip:{ trigger:'axis', ...tipBase(), formatter:p => { if(!p.length)return''; return `<div style="font-size:11px;color:#7AA8C0">${fmtFecha(p[0].axisValue)}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:${pv(p[0])>=0?'#C71E1D':'#0A9396'}">${pv(p[0])>=0?'+':''}${pv(p[0]).toFixed(1)}%</div>`; }, axisPointer:{lineStyle:{color:'rgba(199,30,29,.2)',type:'dashed'}} },
       grid:{ left:4,right:4,top:6,bottom:4,containLabel:true },
       xAxis:{ type:'category', data:e.inter.map(p=>p.fecha), show:false },
       yAxis:{ type:'value', show:false },
       series:[{
         type:'line', data:e.inter.map(p=>p.valor), symbol:'none', smooth:.3,
         lineStyle:{width:2,color}, itemStyle:{color},
-        areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:color+'30'},{offset:1,color:color+'05'}]}}
+        areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:color+'30'},{offset:1,color:color+'05'}]}},
+        markPoint:{ data:[{coord:[e.inter[e.inter.length-1].fecha, e.lastVal]}], symbol:'circle', symbolSize:7, itemStyle:{color,borderColor:'#fff',borderWidth:1.5}, label:{show:false} }
       }]
     });
   });
 }
 
+/* ── Reporte Mensual ── */
+function generateReport() {
+  const g = G.general;
+  if (!g) return '';
+  const last = k => { const arr = g[k]; return arr && arr.length ? arr[arr.length-1] : null; };
+  const prev = k => { const arr = g[k]; return arr && arr.length > 1 ? arr[arr.length-2] : null; };
+  const inter = last('var_interanual');
+  const mens = last('var_mensual');
+  const acum = last('var_acumulada');
+  const idx = last('indice');
+  const prevInter = prev('var_interanual');
+  const fecha = inter ? fmtFecha(inter.fecha) : '—';
+
+  let r = `RESUMEN MENSUAL DE INFLACIÓN — BOLIVIA\n`;
+  r += `Populi · Centro de Estudios de Políticas Públicas para la Libertad\n`;
+  r += `Datos a: ${fecha}\n`;
+  r += `${'═'.repeat(52)}\n\n`;
+
+  r += `1. INDICADORES PRINCIPALES\n${'─'.repeat(36)}\n`;
+  r += `   Inflación interanual:  ${fmt(inter?.valor)}%`;
+  if (prevInter) {
+    const delta = inter.valor - prevInter.valor;
+    r += `  (${delta >= 0 ? '+' : ''}${fmt(delta)} pp vs. mes anterior)`;
+  }
+  r += `\n`;
+  r += `   Inflación mensual:     ${fmt(mens?.valor)}%\n`;
+  r += `   Inflación acumulada:   ${fmt(acum?.valor)}%\n`;
+  r += `   Índice general:        ${fmt(idx?.valor, 1)} (Base 2016=100)\n`;
+
+  const nuc = G.nucleo && G.nucleo.length ? G.nucleo[G.nucleo.length-1] : null;
+  if (nuc) r += `   Inflación núcleo:      ${fmt(nuc.valor, 1)}\n`;
+  r += '\n';
+
+  r += `2. DIAGNÓSTICO\n${'─'.repeat(36)}\n`;
+  const interVal = inter?.valor || 0;
+  const mensVal = mens?.valor || 0;
+  if (interVal > 15) r += `   ⚠ Inflación interanual ALTA (${fmt(interVal)}%), muy por encima\n     del rango saludable (3-5%).\n`;
+  else if (interVal > 8) r += `   ⚠ Inflación interanual ELEVADA (${fmt(interVal)}%), significativamente\n     por encima del objetivo típico de bancos centrales.\n`;
+  else if (interVal > 5) r += `   △ Inflación interanual MODERADA-ALTA (${fmt(interVal)}%).\n`;
+  else r += `   ○ Inflación interanual CONTROLADA (${fmt(interVal)}%).\n`;
+
+  if (nuc && idx) {
+    const brecha = idx.valor - nuc.valor;
+    if (Math.abs(brecha) < 2) r += `   Núcleo y general convergen → presión ESTRUCTURAL.\n`;
+    else if (brecha > 0) r += `   General > Núcleo → shocks TRANSITORIOS (alimentos/transporte).\n`;
+    else r += `   Núcleo > General → presión subyacente contenida por deflación\n     en alimentos.\n`;
+  }
+
+  if (prevInter) {
+    const trend = inter.valor - prevInter.valor;
+    if (trend > 0.5) r += `   Tendencia: ACELERANDO (+${fmt(trend)} pp vs. mes previo).\n`;
+    else if (trend < -0.5) r += `   Tendencia: DESACELERANDO (${fmt(trend)} pp vs. mes previo).\n`;
+    else r += `   Tendencia: ESTABLE (${fmt(trend)} pp vs. mes previo).\n`;
+  }
+  r += '\n';
+
+  if (G.alimentos) {
+    r += `3. ALIMENTOS vs. NO ALIMENTOS\n${'─'.repeat(36)}\n`;
+    const ali = G.alimentos.alimentos;
+    const noAli = G.alimentos.no_alimentos;
+    if (ali?.length && noAli?.length) {
+      const lastAli = ali[ali.length-1].valor;
+      const lastNoAli = noAli[noAli.length-1].valor;
+      const brecha = lastAli - lastNoAli;
+      r += `   Índice alimentos:      ${fmt(lastAli, 1)}\n`;
+      r += `   Índice no alimentos:   ${fmt(lastNoAli, 1)}\n`;
+      r += `   Brecha:                ${brecha >= 0 ? '+' : ''}${fmt(brecha, 1)} puntos\n`;
+      if (brecha > 10) r += `   → Fuerte presión alimentaria sobre hogares vulnerables.\n`;
+      else if (brecha > 5) r += `   → Presión alimentaria moderada.\n`;
+    }
+    r += '\n';
+  }
+
+  if (G.productos) {
+    r += `4. PRODUCTOS DESTACADOS\n${'─'.repeat(36)}\n`;
+    const subs = (G.productos.top_subidas||[]).slice(0,5);
+    const bajs = (G.productos.top_bajadas||[]).slice(0,5);
+    if (subs.length) {
+      r += `   Mayores subidas:\n`;
+      subs.forEach(p => { r += `     ▲ ${p.producto}: +${fmt(p.var_interanual,1)}%\n`; });
+    }
+    if (bajs.length) {
+      r += `   Mayores bajadas:\n`;
+      bajs.forEach(p => { r += `     ▼ ${p.producto}: ${fmt(p.var_interanual,1)}%\n`; });
+    }
+    r += '\n';
+  }
+
+  if (G.ciudades) {
+    r += `5. INFLACIÓN POR DEPARTAMENTO\n${'─'.repeat(36)}\n`;
+    const ranking = [];
+    for (const [ciudad, info] of Object.entries(G.ciudades)) {
+      if (ciudad === 'BOLIVIA') continue;
+      const inter = info.var_interanual;
+      if (!inter?.length) continue;
+      ranking.push({ ciudad, depto: info.departamento, valor: inter[inter.length-1].valor });
+    }
+    ranking.sort((a,b) => b.valor - a.valor);
+    ranking.forEach((r2,i) => {
+      r += `   ${String(i+1).padStart(2)}. ${r2.ciudad.padEnd(16)} ${r2.depto.padEnd(14)} ${r2.valor >= 0?'+':''}${fmt(r2.valor)}%\n`;
+    });
+    r += '\n';
+  }
+
+  r += `${'═'.repeat(52)}\n`;
+  r += `Fuentes: INE Bolivia (IPC Base 2016) · CEPALSTAT (CEPAL)\n`;
+  r += `Elaborado por: Populi — populi.org.bo\n`;
+  return r;
+}
+
+function openReport() {
+  const body = generateReport();
+  if (!body) return;
+  document.getElementById('report-body').textContent = body;
+  document.getElementById('report-modal').style.display = 'flex';
+}
+function closeReport() { document.getElementById('report-modal').style.display = 'none'; }
+function copyReport() {
+  const text = document.getElementById('report-body').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('copy-icon').textContent = '✓';
+    document.getElementById('copy-text').textContent = 'Copiado';
+    setTimeout(() => { document.getElementById('copy-icon').textContent = '📋'; document.getElementById('copy-text').textContent = 'Copiar al portapapeles'; }, 2000);
+  });
+}
+
 /* ── Tema ── */
+function updateChartsTheme() {
+  const c = ct();
+  const axisStyle = { axisLabel:{color:c.axis}, axisLine:{lineStyle:{color:c.grid}}, splitLine:{lineStyle:{color:c.grid}} };
+  const tip = tipBase();
+  Object.entries(charts).forEach(([key, ch]) => {
+    if (Array.isArray(ch)) {
+      ch.forEach(sc => sc && sc.setOption({ tooltip:tip }));
+      return;
+    }
+    if (!ch || typeof ch.setOption !== 'function') return;
+    const opts = { tooltip:tip };
+    const cur = ch.getOption();
+    if (cur.xAxis) opts.xAxis = axisStyle;
+    if (cur.yAxis) opts.yAxis = { axisLabel:{color:c.axis}, splitLine:{lineStyle:{color:c.grid}} };
+    if (cur.legend) opts.legend = { textStyle:{color:c.leg} };
+    ch.setOption(opts);
+  });
+  if (G.geo) renderMapa(G.ciudades, G.geo, G.ciudadesTop);
+}
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('theme-ipc', theme);
   document.getElementById('icon-moon').style.display = theme === 'dark' ? 'none' : 'block';
   document.getElementById('icon-sun').style.display = theme === 'dark' ? 'block' : 'none';
-  if (G.general) renderAll();
+  if (G.general) updateChartsTheme();
 }
 document.getElementById('theme-btn').addEventListener('click', () => {
   applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
@@ -973,7 +1333,13 @@ document.getElementById('theme-btn').addEventListener('click', () => {
 
 /* ── Resize ── */
 let _rt;
-window.addEventListener('resize', () => { clearTimeout(_rt); _rt = setTimeout(() => { if(G.general) renderAll(); }, 200); });
+function resizeAllCharts() {
+  Object.values(charts).forEach(c => {
+    if (c && typeof c.resize === 'function') c.resize();
+    else if (Array.isArray(c)) c.forEach(ch => ch && ch.resize());
+  });
+}
+window.addEventListener('resize', () => { clearTimeout(_rt); _rt = setTimeout(resizeAllCharts, 150); });
 
 /* ── Render All ── */
 function renderAll() {
@@ -982,17 +1348,18 @@ function renderAll() {
   try { renderDivisiones3(G.divisiones); } catch(e) { console.error('Div3:',e); }
   try { renderDivisionesGrid(G.divisiones); } catch(e) { console.error('DivGrid:',e); }
   try { renderAlimentos(G.alimentos); } catch(e) { console.error('Ali:',e); }
-  try { renderNucleo(G.general, G.nucleo); } catch(e) { console.error('Nuc:',e); }
+  try { renderNucleo(G.general, G.nucleo, G.descomp); } catch(e) { console.error('Nuc:',e); }
   try { if(G.transables) renderTransables(G.transables); } catch(e) { console.error('Trans:',e); }
   try { if(G.regional) renderRegional(G.regional); } catch(e) { console.error('Reg:',e); }
   try { if(G.geo) renderMapa(G.ciudades, G.geo, G.ciudadesTop); } catch(e) { console.error('Mapa:',e); }
+  try { if(G.productos) renderProductos(G.productos, G.productosHist); } catch(e) { console.error('Productos:',e); }
   try { renderCiudadesGrid(G.ciudades); } catch(e) { console.error('Ciudades:',e); }
 }
 
 /* ── Init ── */
 async function init() {
   try {
-    const [general, divisiones, nucleo, alimentos, ciudades, metadata, geo, ciudadesTop, transables, regional] = await Promise.all([
+    const [general, divisiones, nucleo, alimentos, ciudades, metadata, geo, ciudadesTop, transables, regional, productos, productosHist, descomp] = await Promise.all([
       fetch('./data/ipc_general.json').then(r=>r.json()),
       fetch('./data/ipc_divisiones.json').then(r=>r.json()),
       fetch('./data/ipc_nucleo.json').then(r=>r.json()),
@@ -1003,14 +1370,20 @@ async function init() {
       fetch('./data/ipc_ciudades_top.json').then(r=>r.json()).catch(()=>null),
       fetch('./data/ipc_transables.json').then(r=>r.json()).catch(()=>null),
       fetch('./data/ipc_regional.json').then(r=>r.json()).catch(()=>null),
+      fetch('./data/ipc_productos.json').then(r=>r.json()).catch(()=>null),
+      fetch('./data/ipc_productos_hist.json').then(r=>r.json()).catch(()=>null),
+      fetch('./data/ipc_descomposicion.json').then(r=>r.json()).catch(()=>null),
     ]);
-    G = { general, divisiones, nucleo, alimentos, ciudades, geo, ciudadesTop, transables, regional };
+    G = { general, divisiones, nucleo, alimentos, ciudades, geo, ciudadesTop, transables, regional, productos, productosHist, descomp };
 
     const upd = new Date(metadata.actualizado);
-    document.getElementById('nav-updated').textContent = upd.toLocaleDateString('es-BO',{day:'numeric',month:'short',year:'numeric'});
+    const updStr = upd.toLocaleDateString('es-BO',{day:'numeric',month:'short',year:'numeric'});
+    document.getElementById('nav-updated').textContent = updStr;
+    document.getElementById('info-updated').textContent = updStr;
     document.getElementById('foot-year').textContent = new Date().getFullYear();
 
     renderAll();
+    document.getElementById('btn-report').style.display = '';
   } catch(err) {
     console.error(err);
     document.querySelectorAll('.loading').forEach(el => el.textContent = 'Error cargando datos.');
