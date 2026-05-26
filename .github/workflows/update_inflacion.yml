@@ -2,8 +2,7 @@ name: "Actualizar datos de inflación"
 
 on:
   schedule:
-    # IPC se publica ~día 5 de cada mes. Correr día 3, 5, 7, 10 para captar la actualización.
-    - cron: "0 15 3,5,7,10 * *"   # 11:00 BOT
+    - cron: "0 15 3,5,7,10 * *"
   workflow_dispatch:
 
 permissions:
@@ -40,3 +39,10 @@ jobs:
             git commit -m "datos: IPC $(date -u +%Y-%m-%d)"
             git push
           fi
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy . --project-name=populi-inflacion
