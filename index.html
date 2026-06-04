@@ -1142,8 +1142,8 @@ function renderMapa(ciudades, geoJson, ciudadesTop, mode = MODE.terr) {
     },
     series:[{
       type:'map', map:'bolivia',
-      roam:true, zoom:1.15, aspectScale:0.82,
-      center:[-64.5,-16.5],
+      roam:false, aspectScale:0.86,
+      layoutCenter:['50%','50%'], layoutSize:'100%',
       data:mapData,
       nameMap:{'LaPaz':'La Paz','SantaCruz':'Santa Cruz'},
       label:{ show:true, fontSize:mob()?8:10, color:dark?'rgba(255,255,255,.6)':'rgba(0,0,0,.6)', fontFamily:'Inter' },
