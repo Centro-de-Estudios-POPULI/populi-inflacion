@@ -127,6 +127,12 @@
     .section-header { flex-wrap:wrap; }
     .section-header .range-btns { margin-left:auto; margin-top:2px; }
     .tg-label { font-size:9px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--muted); align-self:center; margin-right:2px; }
+    .headline { display:flex; align-items:flex-start; gap:10px; margin:0 0 22px; padding:15px 20px; border-radius:var(--radius); background:linear-gradient(100deg,rgba(199,30,29,.06),rgba(10,147,150,.05)); border:1px solid var(--border); border-left:3px solid var(--red); font-size:14px; line-height:1.65; color:var(--text2); }
+    .headline b { color:var(--text); font-weight:700; }
+    .headline .hl-ico { font-size:18px; line-height:1.3; flex-shrink:0; }
+    .tg-note { margin:-4px 0 14px; font-size:11.5px; line-height:1.55; color:var(--muted); }
+    .tg-note b { color:var(--text2); font-weight:600; }
+    @media(max-width:700px){ .headline{font-size:13px;padding:13px 15px;} }
     .rbtn { padding:4px 11px; border-radius:20px; border:1.5px solid var(--border); background:transparent; color:var(--muted); font-family:'Inter',sans-serif; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; transition:all .14s; }
     .rbtn:hover { border-color:var(--red); color:var(--red); background:rgba(199,30,29,.06); }
     .rbtn.active { background:var(--red); border-color:var(--red); color:#fff; }
@@ -253,6 +259,8 @@
 </div>
 
 <main class="container">
+
+  <div class="headline" id="headline" style="display:none"></div>
 
   <!-- 01 KPIs -->
   <section class="section">
@@ -421,6 +429,7 @@
         <button class="rbtn" data-mode="mensual">Mensual</button>
       </div>
     </div>
+    <p class="tg-note" id="terr-note"></p>
     <div class="edu-box">
       <span class="edu-label">¿Por qué varía entre departamentos?</span>
       La inflación no es uniforme en todo el país. Las diferencias entre ciudades reflejan <b>dinámicas locales</b>: acceso a mercados, costos de transporte, oferta agrícola regional y estructura de consumo. Las ciudades del eje central (La Paz, Cochabamba, Santa Cruz) suelen tener mercados más competitivos. Pasa el cursor sobre cada departamento para ver los productos que más subieron y bajaron.
@@ -459,6 +468,7 @@
         <button class="rbtn" data-mode="mensual">Mensual</button>
       </div>
     </div>
+    <p class="tg-note" id="city-note"></p>
     <div class="edu-box">
       <span class="edu-label">¿Cómo interpretar estas tarjetas?</span>
       Cada tarjeta muestra la evolución histórica de la inflación interanual en una ciudad. Tendencias divergentes entre ciudades pueden indicar <b>problemas de abastecimiento locales</b>, variaciones en el mercado inmobiliario, o diferencias en la composición del gasto. Las ciudades están ordenadas de mayor a menor inflación actual. El mapa anterior extrapola estos datos de ciudades al departamento correspondiente.
@@ -480,6 +490,7 @@
         <button class="rbtn" data-mode="mensual">Mensual</button>
       </div>
     </div>
+    <p class="tg-note" id="prod-note"></p>
     <div class="edu-box">
       <span class="edu-label">¿Por qué importa?</span>
       Los promedios esconden realidades: mientras el IPC general sube moderadamente, algunos productos pueden duplicar su precio y otros abaratarse. Esta sección muestra los <b>extremos</b> — los productos que más impactan al bolsillo. El tamaño de la barra refleja la variación porcentual; el número entre paréntesis es la <b>ponderación</b> en la canasta (qué tanto pesa ese producto en el cálculo del IPC).
@@ -581,9 +592,26 @@ function wireRange(btnId, chartKey) {
 }
 
 /* ── Toggle Interanual / Mensual ── */
+let REF_MES = '';
+const fmtMesLargo = f => {
+  if (!f) return '—';
+  const M = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const [y,m] = f.split('-');
+  return `${M[+m]} ${y}`;
+};
 const MODE = { terr:'interanual', prod:'interanual' };
-const TERR_LABELS = { interanual:{adj:'interanual', col:'Var. 12m'}, mensual:{adj:'mensual', col:'Var. mes'} };
-const PROD_LABELS = { interanual:{adj:'interanual'}, mensual:{adj:'mensual'} };
+const TERR_LABELS = {
+  interanual:{ adj:'interanual', col:'Var. 12m', note:'variación a 12 meses — <b>tendencia de fondo</b>, comparable entre países.' },
+  mensual:{ adj:'mensual', col:'Var. mes', note:'variación respecto al mes anterior — capta <b>shocks recientes</b> (abastecimiento, coyuntura).' },
+};
+const PROD_LABELS = {
+  interanual:{ adj:'interanual', note:'ranking por variación a 12 meses — refleja <b>encarecimientos sostenidos</b>.' },
+  mensual:{ adj:'mensual', note:'ranking por variación del último mes — resalta <b>productos con shocks recientes</b> de precio.' },
+};
+function setNote(elId, L) {
+  const el = document.getElementById(elId);
+  if (el) el.innerHTML = `Datos a <b>${REF_MES}</b> · Mostrando ${L.note}`;
+}
 
 function setToggleActive(btnId, mode) {
   document.querySelectorAll(`#${btnId} .rbtn`).forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
@@ -1043,6 +1071,7 @@ function renderMapa(ciudades, geoJson, ciudadesTop, mode = MODE.terr) {
   document.getElementById('rank-sub').textContent = `Ordenado por inflación ${L.adj}`;
   document.getElementById('rank-th').textContent = L.col;
   document.getElementById('terr-sub').textContent = `Variación ${L.adj} del IPC por ciudad capital y conurbación — último dato disponible`;
+  setNote('terr-note', L);
 
   const mapData = [];
   const ranking = [];
@@ -1129,6 +1158,7 @@ function renderProductos(productos, productosHist, mode = MODE.prod) {
   document.getElementById('prod-sub').textContent = `Los 10 productos que más subieron y bajaron de precio — variación ${L.adj}`;
   document.getElementById('prod-up-sub').textContent = `Variación ${L.adj} (%)`;
   document.getElementById('prod-down-sub').textContent = `Variación ${L.adj} (%)`;
+  setNote('prod-note', L);
   const renderBar = (elId, items, color, key) => {
     const el = document.getElementById(elId); el.innerHTML = '';
     const ch = echarts.init(el); charts[key] = ch;
@@ -1198,6 +1228,7 @@ function renderCiudadesGrid(ciudades, mode = MODE.terr) {
   charts._smCiudades = [];
   const L = TERR_LABELS[mode];
   document.getElementById('city-sub').textContent = `Inflación ${L.adj} de cada ciudad capital y conurbación — series individuales`;
+  setNote('city-note', L);
 
   const entries = [];
   for (const [ciudad, info] of Object.entries(ciudades)) {
@@ -1238,6 +1269,30 @@ function renderCiudadesGrid(ciudades, mode = MODE.terr) {
       }]
     });
   });
+}
+
+/* ── Titular dinámico ── */
+function renderHeadline() {
+  const g = G.general;
+  if (!g || !g.indice || !g.indice.length) return;
+  const mesL = fmtMesLargo(g.indice[g.indice.length-1].fecha);
+  const lastOf = k => { const a = g[k]; return a && a.length ? a[a.length-1].valor : null; };
+  const inter = lastOf('var_interanual');
+  const mens = lastOf('var_mensual');
+  const f = v => v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+
+  let txt = `<span class="hl-ico">📊</span><div><b>${mesL}:</b> la inflación interanual fue <b>${f(inter)}</b> y la mensual <b>${f(mens)}</b>.`;
+  const pm = G.productos && (G.productos.mensual || G.productos);
+  const topM = pm && pm.top_subidas && pm.top_subidas[0];
+  if (topM) {
+    const v = topM.var_mensual != null ? topM.var_mensual : topM.var_interanual;
+    txt += ` El producto que más subió en el mes fue <b>${topM.producto}</b> (${v >= 0 ? '+' : ''}${v.toFixed(1)}%).`;
+  }
+  txt += `</div>`;
+
+  const el = document.getElementById('headline');
+  el.innerHTML = txt;
+  el.style.display = '';
 }
 
 /* ── Reporte Mensual ── */
@@ -1411,6 +1466,7 @@ window.addEventListener('resize', () => { clearTimeout(_rt); _rt = setTimeout(re
 
 /* ── Render All ── */
 function renderAll() {
+  try { renderHeadline(); } catch(e) { console.error('Headline:',e); }
   try { renderKPIs(G.general, G.nucleo); } catch(e) { console.error('KPIs:',e); }
   try { renderIPC(G.general); } catch(e) { console.error('IPC:',e); }
   try { renderDivisiones3(G.divisiones); } catch(e) { console.error('Div3:',e); }
@@ -1443,6 +1499,7 @@ async function init() {
       fetch('./data/ipc_descomposicion.json').then(r=>r.json()).catch(()=>null),
     ]);
     G = { general, divisiones, nucleo, alimentos, ciudades, geo, ciudadesTop, transables, regional, productos, productosHist, descomp };
+    REF_MES = fmtMesLargo(general.indice && general.indice.length ? general.indice[general.indice.length-1].fecha : null);
 
     const upd = new Date(metadata.actualizado);
     const updStr = upd.toLocaleDateString('es-BO',{day:'numeric',month:'short',year:'numeric'});
