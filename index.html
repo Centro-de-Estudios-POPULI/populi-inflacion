@@ -1119,15 +1119,17 @@ function renderMapa(ciudades, geoJson, ciudadesTop, mode = MODE.terr) {
       const col = p.value>=0?'#C71E1D':'#0A9396';
       let html = `<div style="font-weight:700;margin-bottom:6px;color:#7AA8C0;font-size:13px">${p.name}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;color:${col};margin-bottom:4px">${pv(p)>=0?'+':''}${pv(p).toFixed(1)}%</div><div style="font-size:10px;color:#5A7A8C;margin-bottom:8px">Inflación ${L.adj}</div>`;
       const top = deptoTop[p.name];
-      if (top) {
+      const tb = top && (top[mode] || (top.subidas ? top : null));
+      if (tb) {
+        const per = mode === 'mensual' ? 'mes' : '12m';
         const renderList = (items, label, color) => {
           if (!items || !items.length) return '';
-          let s = `<div style="font-size:9.5px;font-weight:700;letter-spacing:.5px;color:${color};margin:6px 0 3px;text-transform:uppercase">${label}</div>`;
+          let s = `<div style="font-size:9.5px;font-weight:700;letter-spacing:.5px;color:${color};margin:6px 0 3px;text-transform:uppercase">${label} (${per})</div>`;
           items.forEach(it => { s += `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;line-height:1.6"><span style="color:#A0B8C8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">${it.p}</span><span style="font-family:'IBM Plex Mono',monospace;color:${color};flex-shrink:0">${it.v>=0?'+':''}${it.v.toFixed(1)}%</span></div>`; });
           return s;
         };
-        html += renderList(top.subidas, 'Mayor subida', '#C71E1D');
-        html += renderList(top.bajadas, 'Mayor bajada', '#0A9396');
+        html += renderList(tb.subidas, 'Mayor subida', '#C71E1D');
+        html += renderList(tb.bajadas, 'Mayor bajada', '#0A9396');
       }
       return html;
     }},

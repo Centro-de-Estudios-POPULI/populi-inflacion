@@ -658,14 +658,22 @@ def procesar_ciudades_productos_top(contenido: bytes) -> dict:
                 continue
             ultimo = serie[-1]["valor"]
             hace_12 = serie[-13]["valor"]
+            prev_mes = serie[-2]["valor"]
             var_12 = ((ultimo / hace_12) - 1) * 100 if hace_12 else 0
-            prods.append({"p": desc.strip(), "v": round(var_12, 2)})
+            var_mes = ((ultimo / prev_mes) - 1) * 100 if prev_mes else 0
+            prods.append({"p": desc.strip(), "i": round(var_12, 2), "m": round(var_mes, 2)})
 
-        prods.sort(key=lambda x: x["v"], reverse=True)
+        def _topbot(metric: str) -> dict:
+            ordenado = sorted(prods, key=lambda x: x[metric], reverse=True)
+            return {
+                "subidas": [{"p": x["p"], "v": x[metric]} for x in ordenado[:5]],
+                "bajadas": [{"p": x["p"], "v": x[metric]} for x in reversed(ordenado[-5:])],
+            }
+
         resultado[ciudad] = {
             "departamento": depto_de_ciudad(ciudad),
-            "subidas": prods[:5],
-            "bajadas": list(reversed(prods[-5:])),
+            "interanual": _topbot("i"),
+            "mensual": _topbot("m"),
         }
 
     return resultado
