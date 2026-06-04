@@ -40,24 +40,32 @@ HEADERS = {
     )
 }
 
+# Paginas del INE de donde se resuelven dinamicamente los enlaces de descarga.
+# Los enlaces de nube.ine.gob.bo (Nextcloud) CAMBIAN con cada publicacion mensual,
+# por eso se leen de la pagina en cada corrida (ver resolver_fuentes). Los enlaces
+# hardcodeados abajo son solo el FALLBACK si el parseo de la pagina falla; conviene
+# mantenerlos al dia con la ultima publicacion conocida.
+PAGINA_NACIONAL = "https://www.ine.gob.bo/index.php/nacional/"
+PAGINA_CIUDADES = "https://www.ine.gob.bo/index.php/ciudades-y-conurbaciones/"
+
 FUENTES_NACIONAL = {
-    "general":       "https://nube.ine.gob.bo/index.php/s/O4cCdvtUXQrhpNd/download",
-    "divisiones":    "https://nube.ine.gob.bo/index.php/s/J4dSH7CTeHwL8SS/download",
-    "productos":     "https://nube.ine.gob.bo/index.php/s/q3vO8P1pv65FGcm/download",
-    "ponderaciones": "https://nube.ine.gob.bo/index.php/s/BjZRogQWdQBy2C0/download",
-    "alimentos":     "https://nube.ine.gob.bo/index.php/s/vWT2R9HCIDsdjvE/download",
-    "no_alimentos":  "https://nube.ine.gob.bo/index.php/s/yrJmRmHjmNXvw34/download",
+    "general":       "https://nube.ine.gob.bo/index.php/s/P2HkvtlKILPhbvB/download",
+    "divisiones":    "https://nube.ine.gob.bo/index.php/s/xiffVcALyTuppvB/download",
+    "productos":     "https://nube.ine.gob.bo/index.php/s/lkqCU9CqhvvqtJK/download",
+    "ponderaciones": "https://nube.ine.gob.bo/index.php/s/dPhl5fLuXu3n9Zp/download",
+    "alimentos":     "https://nube.ine.gob.bo/index.php/s/mKbUGrcfcJaJJEC/download",
+    "no_alimentos":  "https://nube.ine.gob.bo/index.php/s/CetvQmQxPiYHAbe/download",
 }
 
 FUENTES_CIUDADES = {
-    "precios_promedio":      "https://nube.ine.gob.bo/index.php/s/crLd2jpbGZLiFAt/download",
-    "ciudades_variaciones":  "https://nube.ine.gob.bo/index.php/s/zJiUiO88pgx3jSu/download",
-    "ciudades_divisiones":   "https://nube.ine.gob.bo/index.php/s/VorZQVesKBFcEhE/download",
-    "ciudades_alimentos":    "https://nube.ine.gob.bo/index.php/s/JSJsoJJNvcBPaBT/download",
-    "ciudades_no_alimentos": "https://nube.ine.gob.bo/index.php/s/MS7cS0L4KSTCSjv/download",
-    "ciudades_productos":    "https://nube.ine.gob.bo/index.php/s/ze8V3dJOhaHmf9n/download",
-    "ciudades_ponderaciones":"https://nube.ine.gob.bo/index.php/s/M9PbTIGkUCgrP5z/download",
-    "ponderacion_ciudades":  "https://nube.ine.gob.bo/index.php/s/n4repmm6wLInx89/download",
+    "precios_promedio":      "https://nube.ine.gob.bo/index.php/s/2n5L4vHgP6tnuVG/download",
+    "ciudades_variaciones":  "https://nube.ine.gob.bo/index.php/s/S1QROlXt3Kyq3x7/download",
+    "ciudades_divisiones":   "https://nube.ine.gob.bo/index.php/s/uDVNHK8ZEjez25L/download",
+    "ciudades_alimentos":    "https://nube.ine.gob.bo/index.php/s/l9co01Sa9hx4wyH/download",
+    "ciudades_no_alimentos": "https://nube.ine.gob.bo/index.php/s/El65Tj7p83X8l6Z/download",
+    "ciudades_productos":    "https://nube.ine.gob.bo/index.php/s/XXPHDFsJcb8F2V4/download",
+    "ciudades_ponderaciones":"https://nube.ine.gob.bo/index.php/s/LTCPw7GQL7NiXrG/download",
+    "ponderacion_ciudades":  "https://nube.ine.gob.bo/index.php/s/4GhQZKvpEbDQh7c/download",
 }
 
 MESES = {
@@ -78,6 +86,84 @@ CIUDAD_DEPTO = {
     "TRINIDAD": "Beni",
     "COBIJA": "Pando",
 }
+
+
+def _sin_acentos(t: str) -> str:
+    t = t.lower()
+    for a, b in (("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u")):
+        t = t.replace(a, b)
+    return t
+
+
+def _extraer_links(html: str) -> list[tuple[str, str]]:
+    """Devuelve [(texto_normalizado, url), ...] de los anchors a nube.ine.gob.bo."""
+    import re
+    links = []
+    patron = r'<a[^>]+href="([^"]*nube\.ine\.gob\.bo[^"]*)"[^>]*>(.*?)</a>'
+    for m in re.finditer(patron, html, re.I | re.S):
+        url = m.group(1)
+        texto = re.sub(r"<[^>]+>", " ", m.group(2))
+        texto = _sin_acentos(re.sub(r"\s+", " ", texto).strip())
+        links.append((texto, url))
+    return links
+
+
+def _match(texto: str, key: str) -> bool:
+    """Reglas para mapear el texto de un enlace del INE a una clave de fuente."""
+    t = texto
+    reglas = {
+        # Nacional
+        "no_alimentos":  "no aliment" in t and "ciudad" not in t,
+        "alimentos":     "aliment" in t and "no aliment" not in t and "ciudad" not in t,
+        "ponderaciones": "ponderac" in t and "producto" in t and "ciudad" not in t,
+        "productos":     "indice a nivel producto" in t and "ciudad" not in t,
+        "divisiones":    "division" in t and "ciudad" not in t,
+        "general":       "indice general" in t and "division" not in t and "ciudad" not in t,
+        # Ciudades
+        "precios_promedio":       "precios promedio" in t,
+        "ciudades_no_alimentos":  "no aliment" in t and "ciudad" in t,
+        "ciudades_alimentos":     "aliment" in t and "no aliment" not in t and "ciudad" in t,
+        "ciudades_divisiones":    "division" in t and "ciudad" in t,
+        "ponderacion_ciudades":   "ponderac" in t and "ciudad" in t,
+        "ciudades_ponderaciones": "ponderac" in t and "producto" in t and "ciudad" not in t,
+        "ciudades_productos":     "indices a nivel producto" in t,
+        "ciudades_variaciones":   "por ciudad" in t and "division" not in t and "aliment" not in t,
+    }
+    return reglas.get(key, False)
+
+
+def resolver_fuentes() -> tuple[dict, dict]:
+    """
+    Lee las paginas del INE y resuelve los enlaces de descarga actuales por el
+    texto de cada enlace. Cae al enlace hardcodeado si no encuentra alguna clave.
+    Devuelve (fuentes_nacional, fuentes_ciudades).
+    """
+    def resolver(pagina: str, fallback: dict) -> dict:
+        try:
+            html = requests.get(pagina, headers=HEADERS, timeout=60, verify=False).text
+            links = _extraer_links(html)
+        except Exception as e:
+            print(f"  [WARN] No se pudo leer {pagina}: {e} -> usando fallback", file=sys.stderr)
+            return dict(fallback)
+
+        resuelto = {}
+        for texto, url in links:
+            for key in fallback:
+                if key in resuelto:
+                    continue
+                if _match(texto, key):
+                    resuelto[key] = url
+                    break
+
+        for key, url in fallback.items():
+            if key not in resuelto:
+                print(f"  [WARN] '{key}' no encontrado en la pagina -> fallback", file=sys.stderr)
+                resuelto[key] = url
+        return resuelto
+
+    nacional = resolver(PAGINA_NACIONAL, FUENTES_NACIONAL)
+    ciudades = resolver(PAGINA_CIUDADES, FUENTES_CIUDADES)
+    return nacional, ciudades
 
 
 def descargar(url: str) -> bytes:
@@ -780,10 +866,14 @@ def main() -> None:
     warnings.filterwarnings("ignore", message="Unverified HTTPS")
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    print("Resolviendo enlaces actuales desde la pagina del INE...")
+    fuentes_nacional, fuentes_ciudades = resolver_fuentes()
+
     print("Descargando Excel del INE...")
 
     archivos = {}
-    todas_fuentes = {**FUENTES_NACIONAL, **FUENTES_CIUDADES}
+    todas_fuentes = {**fuentes_nacional, **fuentes_ciudades}
 
     for nombre, url in todas_fuentes.items():
         try:
