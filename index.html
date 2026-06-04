@@ -178,7 +178,7 @@
     .report-close { width:30px; height:30px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; }
     .report-close:hover { background:var(--card2); }
     .report-body { padding:20px 22px; overflow-y:auto; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.75; color:var(--text); white-space:pre-wrap; word-wrap:break-word; flex:1; margin:0; background:transparent; }
-    .report-footer { padding:14px 22px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; }
+    .report-footer { padding:14px 22px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px; }
     .report-copy { padding:8px 18px; border-radius:8px; border:1.5px solid var(--red); background:transparent; color:var(--red); font-family:'Inter',sans-serif; font-size:12px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all .14s; }
     .report-copy:hover { background:rgba(199,30,29,.08); }
 
@@ -246,6 +246,7 @@
     </div>
     <pre id="report-body" class="report-body"></pre>
     <div class="report-footer">
+      <button class="report-copy" onclick="downloadReport()">⬇ Descargar .txt</button>
       <button class="report-copy" onclick="copyReport()"><span id="copy-icon">📋</span> <span id="copy-text">Copiar al portapapeles</span></button>
     </div>
   </div>
@@ -1312,104 +1313,222 @@ function generateReport() {
   const acum = last('var_acumulada');
   const idx = last('indice');
   const prevInter = prev('var_interanual');
-  const fecha = inter ? fmtFecha(inter.fecha) : '—';
+  const fechaRef = (inter && inter.fecha) || (idx && idx.fecha) || null;
+  const fecha = fmtFecha(fechaRef);
+  const mesLargo = fmtMesLargo(fechaRef);
+  let hoy = '';
+  try { hoy = new Date().toLocaleDateString('es-BO', {day:'numeric', month:'long', year:'numeric'}); } catch(e) {}
 
+  // ── Helpers ──
+  const sgn = v => v >= 0 ? '+' : '';
+  const pf = (v, d=2) => (v == null || isNaN(v)) ? '—' : `${sgn(v)}${Number(v).toFixed(d)}%`;
+  const es = s => String(s).replace(/\./g, ',');                 // decimal con coma (prosa)
+  const pad = (s, n) => { s = String(s); return (s.length > n ? s.slice(0, n-1) + '…' : s).padEnd(n); };
+  const wrap = (t, w=76) => {
+    const out = []; let line = '';
+    t.split(' ').forEach(wd => {
+      if ((line + ' ' + wd).trim().length > w) { out.push(line); line = wd; }
+      else line = line ? line + ' ' + wd : wd;
+    });
+    if (line) out.push(line);
+    return out.join('\n');
+  };
+  // "más alta en X meses" / récord de todo el registro
+  const recordDesde = arr => {
+    if (!arr || arr.length < 4) return null;
+    const L = arr.length - 1, cur = arr[L].valor;
+    for (let i = L - 1; i >= 0; i--) {
+      if (arr[i].valor >= cur) { const span = L - i; return span < 3 ? null : { span }; }
+    }
+    return { span: L, all: true, desde: fmtFecha(arr[0].fecha) };
+  };
+
+  // ── Núcleo como TASA (no nivel de índice) ──
+  let nucInter = null, nucMens = null;
+  if (G.nucleo && G.nucleo.length >= 13) {
+    const n = G.nucleo;
+    nucInter = ((n[n.length-1].valor / n[n.length-13].valor) - 1) * 100;
+    nucMens  = ((n[n.length-1].valor / n[n.length-2].valor) - 1) * 100;
+  }
+
+  // ── Ranking departamental (interanual) ──
+  const cRank = [];
+  for (const [ciudad, info] of Object.entries(G.ciudades||{})) {
+    if (ciudad === 'BOLIVIA') continue;
+    const si = info.var_interanual, sm = info.var_mensual;
+    if (!si || !si.length) continue;
+    cRank.push({ ciudad, depto: info.departamento, valor: si[si.length-1].valor,
+                 mensual: (sm && sm.length) ? sm[sm.length-1].valor : null });
+  }
+  cRank.sort((a,b) => b.valor - a.valor);
+  const ciudadMax = cRank[0];
+
+  // ── Productos del mes / del año ──
+  const prodM = G.productos && (G.productos.mensual || null);
+  const prodI = G.productos && (G.productos.interanual || G.productos);
+  const topMensSub = prodM && prodM.top_subidas && prodM.top_subidas[0];
+
+  const recMensRaw = recordDesde(g.var_mensual || []);
+  const recMens = recMensRaw ? (recMensRaw.all ? `la más alta del registro disponible` : `la más alta en ${recMensRaw.span} meses`) : null;
+
+  // ════════════════════ TÍTULO ════════════════════
   let r = `RESUMEN MENSUAL DE INFLACIÓN — BOLIVIA\n`;
   r += `Populi · Centro de Estudios de Políticas Públicas para la Libertad\n`;
-  r += `Datos a: ${fecha}\n`;
-  r += `${'═'.repeat(52)}\n\n`;
+  r += `Mes de referencia: ${mesLargo}${hoy ? `   ·   Publicado: ${hoy}` : ''}\n`;
+  r += `Fuente: INE Bolivia (IPC Base 2016=100) · Cobertura: 9 ciudades capitales\n`;
+  r += `${'═'.repeat(72)}\n\n`;
 
-  r += `1. INDICADORES PRINCIPALES\n${'─'.repeat(36)}\n`;
-  r += `   Inflación interanual:  ${fmt(inter?.valor)}%`;
-  if (prevInter) {
-    const delta = inter.valor - prevInter.valor;
-    r += `  (${delta >= 0 ? '+' : ''}${fmt(delta)} pp vs. mes anterior)`;
+  // ════════════════════ PÁRRAFO PARA PRENSA ════════════════════
+  let prosa = `En ${mesLargo.toLowerCase()}, la inflación interanual en Bolivia se ubicó en ${es(pf(inter?.valor))}`;
+  if (prevInter && inter) {
+    const d = inter.valor - prevInter.valor;
+    const verbo = d > 0.05 ? 'acelerando' : d < -0.05 ? 'desacelerando' : 'sin cambios';
+    prosa += ` (${verbo} frente al ${es(pf(prevInter.valor))} del mes previo)`;
   }
+  prosa += `. La variación mensual fue de ${es(pf(mens?.valor))}`;
+  if (recMens) prosa += ` —${recMens}—`;
+  prosa += `, y la acumulada en lo que va del año alcanza ${es(pf(acum?.valor))}.`;
+  if (topMensSub) prosa += ` El mayor incremento del mes correspondió a ${topMensSub.producto} (${es(pf(topMensSub.var_mensual, 1))}).`;
+  if (ciudadMax) prosa += ` A nivel territorial, ${ciudadMax.ciudad} encabezó con ${es(pf(ciudadMax.valor, 1))} interanual.`;
+  r += `📰 PÁRRAFO PARA PRENSA\n${'─'.repeat(72)}\n${wrap(prosa)}\n\n`;
+
+  // ════════════════════ 1. INDICADORES ════════════════════
+  r += `1. INDICADORES PRINCIPALES\n${'─'.repeat(72)}\n`;
+  r += `   Inflación interanual:  ${pf(inter?.valor)}`;
+  if (prevInter && inter) r += `   (${sgn(inter.valor - prevInter.valor)}${fmt(inter.valor - prevInter.valor, 2)} pp vs. mes anterior)`;
   r += `\n`;
-  r += `   Inflación mensual:     ${fmt(mens?.valor)}%\n`;
-  r += `   Inflación acumulada:   ${fmt(acum?.valor)}%\n`;
-  r += `   Índice general:        ${fmt(idx?.valor, 1)} (Base 2016=100)\n`;
+  r += `   Inflación mensual:     ${pf(mens?.valor)}${recMens ? `   (${recMens})` : ''}\n`;
+  r += `   Inflación acumulada:   ${pf(acum?.valor)}\n`;
+  if (nucInter != null) r += `   Inflación núcleo:      ${pf(nucInter)} interanual · ${pf(nucMens)} mensual\n`;
+  r += `   Índice general:        ${fmt(idx?.valor, 2)}  (Base 2016=100)\n\n`;
 
-  const nuc = G.nucleo && G.nucleo.length ? G.nucleo[G.nucleo.length-1] : null;
-  if (nuc) r += `   Inflación núcleo:      ${fmt(nuc.valor, 1)}\n`;
-  r += '\n';
-
-  r += `2. DIAGNÓSTICO\n${'─'.repeat(36)}\n`;
+  // ════════════════════ 2. DIAGNÓSTICO ════════════════════
+  r += `2. DIAGNÓSTICO\n${'─'.repeat(72)}\n`;
   const interVal = inter?.valor || 0;
-  const mensVal = mens?.valor || 0;
-  if (interVal > 15) r += `   ⚠ Inflación interanual ALTA (${fmt(interVal)}%), muy por encima\n     del rango saludable (3-5%).\n`;
-  else if (interVal > 8) r += `   ⚠ Inflación interanual ELEVADA (${fmt(interVal)}%), significativamente\n     por encima del objetivo típico de bancos centrales.\n`;
-  else if (interVal > 5) r += `   △ Inflación interanual MODERADA-ALTA (${fmt(interVal)}%).\n`;
-  else r += `   ○ Inflación interanual CONTROLADA (${fmt(interVal)}%).\n`;
+  if (interVal > 15) r += `   ⚠ Inflación interanual ALTA (${pf(interVal)}), muy por encima del rango\n     saludable (3-5%).\n`;
+  else if (interVal > 8) r += `   ⚠ Inflación interanual ELEVADA (${pf(interVal)}), por encima del objetivo\n     típico de bancos centrales.\n`;
+  else if (interVal > 5) r += `   △ Inflación interanual MODERADA-ALTA (${pf(interVal)}).\n`;
+  else r += `   ○ Inflación interanual CONTROLADA (${pf(interVal)}).\n`;
 
-  if (nuc && idx) {
-    const brecha = idx.valor - nuc.valor;
-    if (Math.abs(brecha) < 2) r += `   Núcleo y general convergen → presión ESTRUCTURAL.\n`;
-    else if (brecha > 0) r += `   General > Núcleo → shocks TRANSITORIOS (alimentos/transporte).\n`;
-    else r += `   Núcleo > General → presión subyacente contenida por deflación\n     en alimentos.\n`;
+  if (nucInter != null && inter) {
+    const brecha = inter.valor - nucInter;
+    if (Math.abs(brecha) < 1) r += `   Núcleo (${pf(nucInter)}) ≈ general → presión GENERALIZADA/estructural.\n`;
+    else if (brecha > 0) r += `   General (${pf(inter.valor)}) > núcleo (${pf(nucInter)}) → empujado por shocks\n     de alimentos/energía/transporte (transitorios).\n`;
+    else r += `   Núcleo (${pf(nucInter)}) > general (${pf(inter.valor)}) → presión subyacente; alimentos\n     y energía contienen el dato general.\n`;
   }
-
-  if (prevInter) {
+  if (prevInter && inter) {
     const trend = inter.valor - prevInter.valor;
-    if (trend > 0.5) r += `   Tendencia: ACELERANDO (+${fmt(trend)} pp vs. mes previo).\n`;
-    else if (trend < -0.5) r += `   Tendencia: DESACELERANDO (${fmt(trend)} pp vs. mes previo).\n`;
-    else r += `   Tendencia: ESTABLE (${fmt(trend)} pp vs. mes previo).\n`;
+    if (trend > 0.5) r += `   Tendencia: ACELERANDO (${sgn(trend)}${fmt(trend,2)} pp vs. mes previo).\n`;
+    else if (trend < -0.5) r += `   Tendencia: DESACELERANDO (${fmt(trend,2)} pp vs. mes previo).\n`;
+    else r += `   Tendencia: ESTABLE (${sgn(trend)}${fmt(trend,2)} pp vs. mes previo).\n`;
   }
   r += '\n';
 
+  // ════════════════════ 3. DIVISIONES COICOP ════════════════════
+  const divs = [];
+  for (const [nombre, serie] of Object.entries(G.divisiones||{})) {
+    if (/general/i.test(nombre)) continue;
+    if (!serie || serie.length < 13) continue;
+    const u = serie[serie.length-1].valor, m = serie[serie.length-2].valor, y = serie[serie.length-13].valor;
+    divs.push({ nombre: nombre.replace(/^\d+\.\s*/, ''), mensual: ((u/m)-1)*100, interanual: ((u/y)-1)*100 });
+  }
+  if (divs.length) {
+    r += `3. QUÉ EMPUJÓ LA INFLACIÓN — DIVISIONES COICOP\n${'─'.repeat(72)}\n`;
+    const divM = [...divs].sort((a,b) => b.mensual - a.mensual).slice(0,3);
+    const divY = [...divs].sort((a,b) => b.interanual - a.interanual).slice(0,3);
+    r += `   Mayor incidencia en el mes:\n`;
+    divM.forEach(d => { r += `     ▲ ${pad(d.nombre, 42)} ${pf(d.mensual,1).padStart(7)} mensual\n`; });
+    r += `   Mayor incidencia a 12 meses:\n`;
+    divY.forEach(d => { r += `     ▲ ${pad(d.nombre, 42)} ${pf(d.interanual,1).padStart(7)} interanual\n`; });
+    r += '\n';
+  }
+
+  // ════════════════════ 4. PRODUCTOS DESTACADOS ════════════════════
+  if (G.productos) {
+    r += `4. PRODUCTOS DESTACADOS\n${'─'.repeat(72)}\n`;
+    const lista = (arr, metric, simbolo) => (arr||[]).slice(0,5).forEach(p => {
+      r += `     ${simbolo} ${pad(p.producto, 40)} ${pf(p[metric],1).padStart(7)}\n`;
+    });
+    if (prodM) {
+      r += `   En el mes (variación mensual):\n`;
+      lista(prodM.top_subidas, 'var_mensual', '▲'); lista(prodM.top_bajadas, 'var_mensual', '▼');
+    }
+    if (prodI) {
+      r += `   En 12 meses (variación interanual):\n`;
+      lista(prodI.top_subidas, 'var_interanual', '▲'); lista(prodI.top_bajadas, 'var_interanual', '▼');
+    }
+    r += '\n';
+  }
+
+  // ════════════════════ 5. ALIMENTOS vs NO ALIMENTOS ════════════════════
   if (G.alimentos) {
-    r += `3. ALIMENTOS vs. NO ALIMENTOS\n${'─'.repeat(36)}\n`;
-    const ali = G.alimentos.alimentos;
-    const noAli = G.alimentos.no_alimentos;
-    if (ali?.length && noAli?.length) {
-      const lastAli = ali[ali.length-1].valor;
-      const lastNoAli = noAli[noAli.length-1].valor;
-      const brecha = lastAli - lastNoAli;
-      r += `   Índice alimentos:      ${fmt(lastAli, 1)}\n`;
-      r += `   Índice no alimentos:   ${fmt(lastNoAli, 1)}\n`;
-      r += `   Brecha:                ${brecha >= 0 ? '+' : ''}${fmt(brecha, 1)} puntos\n`;
+    const aliYoY = calcYoY(G.alimentos.alimentos || []);
+    const noAliYoY = calcYoY(G.alimentos.no_alimentos || []);
+    if (aliYoY.length && noAliYoY.length) {
+      r += `5. ALIMENTOS vs. NO ALIMENTOS (interanual)\n${'─'.repeat(72)}\n`;
+      const a = aliYoY[aliYoY.length-1].valor, na = noAliYoY[noAliYoY.length-1].valor;
+      const brecha = a - na;
+      r += `   Inflación alimentos:      ${pf(a, 1)}\n`;
+      r += `   Inflación no alimentos:   ${pf(na, 1)}\n`;
+      r += `   Brecha:                   ${sgn(brecha)}${fmt(brecha, 1)} pp\n`;
       if (brecha > 10) r += `   → Fuerte presión alimentaria sobre hogares vulnerables.\n`;
       else if (brecha > 5) r += `   → Presión alimentaria moderada.\n`;
+      else if (brecha < -2) r += `   → Los alimentos contienen el índice general.\n`;
+      r += '\n';
     }
-    r += '\n';
   }
 
-  if (G.productos) {
-    r += `4. PRODUCTOS DESTACADOS (interanual)\n${'─'.repeat(36)}\n`;
-    const prodI = G.productos.interanual || G.productos;
-    const subs = (prodI.top_subidas||[]).slice(0,5);
-    const bajs = (prodI.top_bajadas||[]).slice(0,5);
-    if (subs.length) {
-      r += `   Mayores subidas:\n`;
-      subs.forEach(p => { r += `     ▲ ${p.producto}: +${fmt(p.var_interanual,1)}%\n`; });
-    }
-    if (bajs.length) {
-      r += `   Mayores bajadas:\n`;
-      bajs.forEach(p => { r += `     ▼ ${p.producto}: ${fmt(p.var_interanual,1)}%\n`; });
-    }
-    r += '\n';
-  }
-
-  if (G.ciudades) {
-    r += `5. INFLACIÓN POR DEPARTAMENTO\n${'─'.repeat(36)}\n`;
-    const ranking = [];
-    for (const [ciudad, info] of Object.entries(G.ciudades)) {
-      if (ciudad === 'BOLIVIA') continue;
-      const inter = info.var_interanual;
-      if (!inter?.length) continue;
-      ranking.push({ ciudad, depto: info.departamento, valor: inter[inter.length-1].valor });
-    }
-    ranking.sort((a,b) => b.valor - a.valor);
-    ranking.forEach((r2,i) => {
-      r += `   ${String(i+1).padStart(2)}. ${r2.ciudad.padEnd(16)} ${r2.depto.padEnd(14)} ${r2.valor >= 0?'+':''}${fmt(r2.valor)}%\n`;
+  // ════════════════════ 6. INFLACIÓN POR DEPARTAMENTO ════════════════════
+  if (cRank.length) {
+    r += `6. INFLACIÓN POR DEPARTAMENTO (interanual · ${fmtFecha(fechaRef)})\n${'─'.repeat(72)}\n`;
+    cRank.forEach((c,i) => {
+      const m = c.mensual != null ? `   ${pf(c.mensual,1).padStart(6)} mens.` : '';
+      r += `   ${String(i+1).padStart(2)}. ${pad(c.ciudad, 22)} ${pad(c.depto, 12)} ${pf(c.valor,1).padStart(7)}${m}\n`;
     });
     r += '\n';
   }
 
-  r += `${'═'.repeat(52)}\n`;
-  r += `Fuentes: INE Bolivia (IPC Base 2016) · CEPALSTAT (CEPAL)\n`;
-  r += `Elaborado por: Populi — populi.org.bo\n`;
+  // ════════════════════ 7. BOLIVIA EN LA REGIÓN ════════════════════
+  if (G.regional) {
+    const regRank = []; let regFecha = null;
+    for (const [pais, serie] of Object.entries(G.regional)) {
+      const yoy = calcYoY(serie); if (!yoy.length) continue;
+      const ly = yoy[yoy.length-1]; regFecha = ly.fecha;
+      regRank.push({ pais, valor: ly.valor });
+    }
+    if (regRank.length) {
+      regRank.sort((a,b) => b.valor - a.valor);
+      const posBol = regRank.findIndex(x => x.pais === 'Bolivia') + 1;
+      r += `7. BOLIVIA EN LA REGIÓN (interanual · CEPALSTAT · ${fmtFecha(regFecha)})\n${'─'.repeat(72)}\n`;
+      regRank.forEach((x,i) => {
+        const flecha = x.pais === 'Bolivia' ? ' ◄ BOLIVIA' : '';
+        r += `   ${String(i+1).padStart(2)}. ${x.pais.padEnd(14)} ${pf(x.valor,1).padStart(7)}${flecha}\n`;
+      });
+      if (posBol) r += `   → Bolivia ocupa el puesto ${posBol} de ${regRank.length} (mayor a menor inflación).\n`;
+      r += `   Nota: CEPALSTAT actualiza con un mes de rezago frente al dato nacional.\n\n`;
+    }
+  }
+
+  // ════════════════════ PIE ════════════════════
+  r += `${'═'.repeat(72)}\n`;
+  r += `NOTA METODOLÓGICA: IPC del INE, Base 2016=100. La inflación interanual\n`;
+  r += `compara con el mismo mes del año previo; la mensual, con el mes anterior.\n`;
+  r += `Inflación núcleo: excluye alimentos y energía/transporte.\n`;
+  r += `Fuentes: INE Bolivia (IPC) · CEPALSTAT (CEPAL). Elaborado por Populi — populi.org.bo\n`;
   return r;
+}
+
+function downloadReport() {
+  const text = document.getElementById('report-body').textContent;
+  if (!text) return;
+  const g = G.general;
+  const f = (g && g.indice && g.indice.length) ? g.indice[g.indice.length-1].fecha : 'reporte';
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `inflacion-bolivia-${f}.txt`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
 function openReport() {
