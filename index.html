@@ -1061,7 +1061,9 @@ function renderRegional(regional) {
 /* ── Mapa Coroplético ── */
 function renderMapa(ciudades, geoJson, ciudadesTop, mode = MODE.terr) {
   echarts.registerMap('bolivia', geoJson);
-  const el = document.getElementById('chart-mapa'); el.innerHTML = '';
+  const el = document.getElementById('chart-mapa');
+  const prevMapa = echarts.getInstanceByDom(el); if (prevMapa) prevMapa.dispose();
+  el.innerHTML = '';
   const ch = echarts.init(el); charts.mapa = ch;
   const c = ct();
   const dark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -1160,7 +1162,9 @@ function renderProductos(productos, productosHist, mode = MODE.prod) {
   document.getElementById('prod-down-sub').textContent = `Variación ${L.adj} (%)`;
   setNote('prod-note', L);
   const renderBar = (elId, items, color, key) => {
-    const el = document.getElementById(elId); el.innerHTML = '';
+    const el = document.getElementById(elId);
+    const prevBar = echarts.getInstanceByDom(el); if (prevBar) prevBar.dispose();
+    el.innerHTML = '';
     const ch = echarts.init(el); charts[key] = ch;
     const top10 = items.slice(0, 10).reverse();
     const names = top10.map(p => p.producto.length > 28 ? p.producto.slice(0,26)+'…' : p.producto);
