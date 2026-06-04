@@ -124,6 +124,9 @@
     @media(max-width:700px){ .chart{height:240px;} .chart-tall{height:300px;} .chart-med{height:220px;} .chart-xl{height:280px;} }
 
     .range-btns { display:flex; gap:4px; flex-shrink:0; }
+    .section-header { flex-wrap:wrap; }
+    .section-header .range-btns { margin-left:auto; margin-top:2px; }
+    .tg-label { font-size:9px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--muted); align-self:center; margin-right:2px; }
     .rbtn { padding:4px 11px; border-radius:20px; border:1.5px solid var(--border); background:transparent; color:var(--muted); font-family:'Inter',sans-serif; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; transition:all .14s; }
     .rbtn:hover { border-color:var(--red); color:var(--red); background:rgba(199,30,29,.06); }
     .rbtn.active { background:var(--red); border-color:var(--red); color:#fff; }
@@ -410,7 +413,12 @@
       <span class="section-num">06</span>
       <div class="section-titles">
         <h2>Inflación por Departamento</h2>
-        <p>Variación interanual del IPC por ciudad capital y conurbación — último dato disponible</p>
+        <p id="terr-sub">Variación interanual del IPC por ciudad capital y conurbación — último dato disponible</p>
+      </div>
+      <div class="range-btns" id="tg-terr">
+        <span class="tg-label">Medida</span>
+        <button class="rbtn active" data-mode="interanual">Interanual</button>
+        <button class="rbtn" data-mode="mensual">Mensual</button>
       </div>
     </div>
     <div class="edu-box">
@@ -420,17 +428,17 @@
     <div class="map-col">
       <div class="chart-card">
         <div class="chart-card-top">
-          <div class="chart-card-meta"><span class="chart-card-title">Mapa coroplético — Inflación interanual</span><span class="chart-card-sub" id="map-sub">Departamentos de Bolivia</span></div>
+          <div class="chart-card-meta"><span class="chart-card-title" id="map-title">Mapa coroplético — Inflación interanual</span><span class="chart-card-sub" id="map-sub">Departamentos de Bolivia</span></div>
         </div>
         <div id="chart-mapa" class="chart chart-xl"><div class="loading">Cargando mapa...</div></div>
       </div>
       <div>
         <div class="chart-card" style="height:100%">
           <div class="chart-card-top" style="margin-bottom:10px">
-            <div class="chart-card-meta"><span class="chart-card-title">Ranking departamental</span><span class="chart-card-sub">Ordenado por inflación interanual</span></div>
+            <div class="chart-card-meta"><span class="chart-card-title">Ranking departamental</span><span class="chart-card-sub" id="rank-sub">Ordenado por inflación interanual</span></div>
           </div>
           <div id="ranking-container" style="overflow:auto;max-height:400px">
-            <table><thead><tr><th>Ciudad</th><th>Depto.</th><th style="text-align:right">Var. 12m</th></tr></thead><tbody id="ranking-body"><tr><td colspan="3" class="loading">Cargando...</td></tr></tbody></table>
+            <table><thead><tr><th>Ciudad</th><th>Depto.</th><th style="text-align:right" id="rank-th">Var. 12m</th></tr></thead><tbody id="ranking-body"><tr><td colspan="3" class="loading">Cargando...</td></tr></tbody></table>
           </div>
         </div>
       </div>
@@ -443,7 +451,12 @@
       <span class="section-num">07</span>
       <div class="section-titles">
         <h2>Evolución por Ciudad</h2>
-        <p>Inflación interanual de cada ciudad capital y conurbación — series individuales</p>
+        <p id="city-sub">Inflación interanual de cada ciudad capital y conurbación — series individuales</p>
+      </div>
+      <div class="range-btns" id="tg-terr2">
+        <span class="tg-label">Medida</span>
+        <button class="rbtn active" data-mode="interanual">Interanual</button>
+        <button class="rbtn" data-mode="mensual">Mensual</button>
       </div>
     </div>
     <div class="edu-box">
@@ -459,7 +472,12 @@
       <span class="section-num">08</span>
       <div class="section-titles">
         <h2>Productos con Mayor Variación</h2>
-        <p>Los 10 productos que más subieron y bajaron de precio — variación interanual</p>
+        <p id="prod-sub">Los 10 productos que más subieron y bajaron de precio — variación interanual</p>
+      </div>
+      <div class="range-btns" id="tg-prod">
+        <span class="tg-label">Medida</span>
+        <button class="rbtn active" data-mode="interanual">Interanual</button>
+        <button class="rbtn" data-mode="mensual">Mensual</button>
       </div>
     </div>
     <div class="edu-box">
@@ -468,11 +486,11 @@
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" id="productos-grid">
       <div class="chart-card">
-        <div class="chart-card-top"><div class="chart-card-meta"><span class="chart-card-title" style="color:var(--red)">▲ Mayores subidas</span><span class="chart-card-sub">Variación interanual (%)</span></div></div>
+        <div class="chart-card-top"><div class="chart-card-meta"><span class="chart-card-title" style="color:var(--red)">▲ Mayores subidas</span><span class="chart-card-sub" id="prod-up-sub">Variación interanual (%)</span></div></div>
         <div id="chart-prod-up" class="chart chart-tall"><div class="loading">Cargando...</div></div>
       </div>
       <div class="chart-card">
-        <div class="chart-card-top"><div class="chart-card-meta"><span class="chart-card-title" style="color:var(--teal)">▼ Mayores bajadas</span><span class="chart-card-sub">Variación interanual (%)</span></div></div>
+        <div class="chart-card-top"><div class="chart-card-meta"><span class="chart-card-title" style="color:var(--teal)">▼ Mayores bajadas</span><span class="chart-card-sub" id="prod-down-sub">Variación interanual (%)</span></div></div>
         <div id="chart-prod-down" class="chart chart-tall"><div class="loading">Cargando...</div></div>
       </div>
     </div>
@@ -559,6 +577,41 @@ function wireRange(btnId, chartKey) {
       btn.classList.add('active');
       applyRange(chartKey, parseInt(btn.dataset.m));
     });
+  });
+}
+
+/* ── Toggle Interanual / Mensual ── */
+const MODE = { terr:'interanual', prod:'interanual' };
+const TERR_LABELS = { interanual:{adj:'interanual', col:'Var. 12m'}, mensual:{adj:'mensual', col:'Var. mes'} };
+const PROD_LABELS = { interanual:{adj:'interanual'}, mensual:{adj:'mensual'} };
+
+function setToggleActive(btnId, mode) {
+  document.querySelectorAll(`#${btnId} .rbtn`).forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+}
+
+function wireToggle(btnIds, modeKey, rerender) {
+  btnIds.forEach(btnId => {
+    document.querySelectorAll(`#${btnId} .rbtn`).forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode;
+        if (MODE[modeKey] === mode) return;
+        MODE[modeKey] = mode;
+        btnIds.forEach(id => setToggleActive(id, mode));
+        rerender(mode);
+      });
+    });
+  });
+}
+
+function wireToggles() {
+  // Territorial: el toggle aparece en la sección Departamento y en Evolución por
+  // Ciudad; ambos comparten estado y re-renderizan mapa, ranking y series.
+  wireToggle(['tg-terr','tg-terr2'], 'terr', (mode) => {
+    if (G.geo) renderMapa(G.ciudades, G.geo, G.ciudadesTop, mode);
+    renderCiudadesGrid(G.ciudades, mode);
+  });
+  wireToggle(['tg-prod'], 'prod', (mode) => {
+    if (G.productos) renderProductos(G.productos, G.productosHist, mode);
   });
 }
 
@@ -978,12 +1031,18 @@ function renderRegional(regional) {
 }
 
 /* ── Mapa Coroplético ── */
-function renderMapa(ciudades, geoJson, ciudadesTop) {
+function renderMapa(ciudades, geoJson, ciudadesTop, mode = MODE.terr) {
   echarts.registerMap('bolivia', geoJson);
   const el = document.getElementById('chart-mapa'); el.innerHTML = '';
   const ch = echarts.init(el); charts.mapa = ch;
   const c = ct();
   const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const L = TERR_LABELS[mode];
+
+  document.getElementById('map-title').textContent = `Mapa coroplético — Inflación ${L.adj}`;
+  document.getElementById('rank-sub').textContent = `Ordenado por inflación ${L.adj}`;
+  document.getElementById('rank-th').textContent = L.col;
+  document.getElementById('terr-sub').textContent = `Variación ${L.adj} del IPC por ciudad capital y conurbación — último dato disponible`;
 
   const mapData = [];
   const ranking = [];
@@ -992,9 +1051,9 @@ function renderMapa(ciudades, geoJson, ciudadesTop) {
   for (const [ciudad, info] of Object.entries(ciudades)) {
     if (ciudad === 'BOLIVIA') continue;
     const depto = info.departamento;
-    const inter = info.var_interanual;
-    if (!inter || !inter.length) continue;
-    const ultimo = inter[inter.length-1];
+    const serie = info['var_' + mode];
+    if (!serie || !serie.length) continue;
+    const ultimo = serie[serie.length-1];
     mapData.push({ name:depto, value:ultimo.valor });
     ranking.push({ ciudad, depto, valor:ultimo.valor, fecha:ultimo.fecha });
   }
@@ -1027,7 +1086,7 @@ function renderMapa(ciudades, geoJson, ciudadesTop) {
     tooltip:{ trigger:'item', ...tipBase(), extraCssText:'box-shadow:0 8px 28px rgba(0,0,0,.45);border-radius:10px;padding:14px 18px;max-width:320px', formatter:p => {
       if(pv(p)==null||isNaN(pv(p))) return `<b>${p.name}</b><br/>Sin datos`;
       const col = p.value>=0?'#C71E1D':'#0A9396';
-      let html = `<div style="font-weight:700;margin-bottom:6px;color:#7AA8C0;font-size:13px">${p.name}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;color:${col};margin-bottom:4px">${pv(p)>=0?'+':''}${pv(p).toFixed(1)}%</div><div style="font-size:10px;color:#5A7A8C;margin-bottom:8px">Inflación interanual</div>`;
+      let html = `<div style="font-weight:700;margin-bottom:6px;color:#7AA8C0;font-size:13px">${p.name}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;color:${col};margin-bottom:4px">${pv(p)>=0?'+':''}${pv(p).toFixed(1)}%</div><div style="font-size:10px;color:#5A7A8C;margin-bottom:8px">Inflación ${L.adj}</div>`;
       const top = deptoTop[p.name];
       if (top) {
         const renderList = (items, label, color) => {
@@ -1062,14 +1121,20 @@ function renderMapa(ciudades, geoJson, ciudadesTop) {
 }
 
 /* ── Productos ── */
-function renderProductos(productos, productosHist) {
+function renderProductos(productos, productosHist, mode = MODE.prod) {
   const c = ct();
+  const data = productos[mode] || productos;
+  const metric = 'var_' + mode;
+  const L = PROD_LABELS[mode];
+  document.getElementById('prod-sub').textContent = `Los 10 productos que más subieron y bajaron de precio — variación ${L.adj}`;
+  document.getElementById('prod-up-sub').textContent = `Variación ${L.adj} (%)`;
+  document.getElementById('prod-down-sub').textContent = `Variación ${L.adj} (%)`;
   const renderBar = (elId, items, color, key) => {
     const el = document.getElementById(elId); el.innerHTML = '';
     const ch = echarts.init(el); charts[key] = ch;
     const top10 = items.slice(0, 10).reverse();
     const names = top10.map(p => p.producto.length > 28 ? p.producto.slice(0,26)+'…' : p.producto);
-    const vals = top10.map(p => p.var_interanual);
+    const vals = top10.map(p => p[metric]);
     const ponds = top10.map(p => p.ponderacion);
     const allPositive = vals.every(v => v >= 0);
     const allNegative = vals.every(v => v < 0);
@@ -1079,8 +1144,8 @@ function renderProductos(productos, productosHist) {
         if(!params.length) return '';
         const i = params[0].dataIndex;
         const item = top10[i];
-        const col = item.var_interanual >= 0 ? '#C71E1D' : '#0A9396';
-        return `<div style="font-weight:700;margin-bottom:4px;font-size:11px;color:#7AA8C0">${item.producto}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:${col}">${item.var_interanual >= 0?'+':''}${item.var_interanual.toFixed(1)}%</div><div style="font-size:10.5px;color:#5A7A8C;margin-top:4px">Ponderación: ${item.ponderacion.toFixed(3)}%</div>`;
+        const col = item[metric] >= 0 ? '#C71E1D' : '#0A9396';
+        return `<div style="font-weight:700;margin-bottom:4px;font-size:11px;color:#7AA8C0">${item.producto}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:${col}">${item[metric] >= 0?'+':''}${item[metric].toFixed(1)}%</div><div style="font-size:10.5px;color:#5A7A8C;margin-top:4px">Ponderación: ${(item.ponderacion||0).toFixed(3)}%</div>`;
       }},
       grid:{ left:mob()?90:170,right:mob()?60:90,top:8,bottom:28,containLabel:false },
       xAxis:{ type:'value',name:'%',nameTextStyle:{color:c.axis,fontSize:9},axisLabel:{fontSize:10,color:c.axis,fontFamily:'IBM Plex Mono'},splitLine:{lineStyle:{color:c.grid,type:'dashed'}},axisLine:{show:false} },
@@ -1092,8 +1157,8 @@ function renderProductos(productos, productosHist) {
       }]
     });
   };
-  renderBar('chart-prod-up', productos.top_subidas||[], '#C71E1D', 'prodUp');
-  renderBar('chart-prod-down', productos.top_bajadas||[], '#0A9396', 'prodDown');
+  renderBar('chart-prod-up', data.top_subidas||[], '#C71E1D', 'prodUp');
+  renderBar('chart-prod-down', data.top_bajadas||[], '#0A9396', 'prodDown');
 
   if (!productosHist) return;
   const grid = document.getElementById('productos-hist-grid');
@@ -1101,15 +1166,15 @@ function renderProductos(productos, productosHist) {
   if (charts._smProductos) charts._smProductos.forEach(c => c.dispose());
   charts._smProductos = [];
 
-  const topNames = [...(productos.top_subidas||[]).slice(0,5), ...(productos.top_bajadas||[]).slice(0,3)];
+  const topNames = [...(data.top_subidas||[]).slice(0,5), ...(data.top_bajadas||[]).slice(0,3)];
   topNames.forEach((item, idx) => {
     const serie = productosHist[item.producto];
     if (!serie || serie.length < 2) return;
     const card = document.createElement('div');
     card.className = 'sm-card';
-    const color = item.var_interanual >= 0 ? '#C71E1D' : '#0A9396';
-    const sign = item.var_interanual >= 0 ? '+' : '';
-    card.innerHTML = `<div class="sm-header"><span class="sm-title" style="font-size:10.5px">${item.producto}</span><span class="sm-val" style="color:${color}">${sign}${item.var_interanual.toFixed(1)}%</span></div><div class="sm-sub">Índice (Base 2016=100) · Pond. ${item.ponderacion.toFixed(2)}%</div><div class="sm-chart" id="sm-prod-${idx}"></div>`;
+    const color = item[metric] >= 0 ? '#C71E1D' : '#0A9396';
+    const sign = item[metric] >= 0 ? '+' : '';
+    card.innerHTML = `<div class="sm-header"><span class="sm-title" style="font-size:10.5px">${item.producto}</span><span class="sm-val" style="color:${color}">${sign}${item[metric].toFixed(1)}%</span></div><div class="sm-sub">Índice (Base 2016=100) · Pond. ${(item.ponderacion||0).toFixed(2)}%</div><div class="sm-chart" id="sm-prod-${idx}"></div>`;
     grid.appendChild(card);
 
     const ch = echarts.init(card.querySelector('.sm-chart'));
@@ -1126,20 +1191,22 @@ function renderProductos(productos, productosHist) {
 }
 
 /* ── Small Multiples Ciudades ── */
-function renderCiudadesGrid(ciudades) {
+function renderCiudadesGrid(ciudades, mode = MODE.terr) {
   const grid = document.getElementById('ciudades-grid');
   grid.innerHTML = '';
   if (charts._smCiudades) charts._smCiudades.forEach(c => c.dispose());
   charts._smCiudades = [];
+  const L = TERR_LABELS[mode];
+  document.getElementById('city-sub').textContent = `Inflación ${L.adj} de cada ciudad capital y conurbación — series individuales`;
 
   const entries = [];
   for (const [ciudad, info] of Object.entries(ciudades)) {
     if (ciudad === 'BOLIVIA') continue;
-    const inter = info.var_interanual;
-    if (!inter || !inter.length) continue;
+    const serie = info['var_' + mode];
+    if (!serie || !serie.length) continue;
     const depto = info.departamento;
-    const last = inter[inter.length-1];
-    entries.push({ ciudad, depto, inter, lastVal:last.valor });
+    const last = serie[serie.length-1];
+    entries.push({ ciudad, depto, serie, lastVal:last.valor });
   }
   entries.sort((a,b) => b.lastVal - a.lastVal);
 
@@ -1150,7 +1217,7 @@ function renderCiudadesGrid(ciudades) {
     const color = CITY_COLORS[e.depto] || PAL[idx % PAL.length];
     const sign = e.lastVal >= 0 ? '+' : '';
     const valCol = e.lastVal >= 0 ? '#C71E1D' : '#0A9396';
-    card.innerHTML = `<div class="sm-header"><span class="sm-title">${e.ciudad}</span><span class="sm-val" style="color:${valCol}">${sign}${e.lastVal.toFixed(1)}%</span></div><div class="sm-sub">${e.depto} · Var. interanual</div><div class="sm-chart" id="sm-city-${idx}"></div>`;
+    card.innerHTML = `<div class="sm-header"><span class="sm-title">${e.ciudad}</span><span class="sm-val" style="color:${valCol}">${sign}${e.lastVal.toFixed(1)}%</span></div><div class="sm-sub">${e.depto} · Var. ${L.adj}</div><div class="sm-chart" id="sm-city-${idx}"></div>`;
     grid.appendChild(card);
 
     const chartEl = card.querySelector('.sm-chart');
@@ -1161,13 +1228,13 @@ function renderCiudadesGrid(ciudades) {
       backgroundColor:'transparent',
       tooltip:{ trigger:'axis', ...tipBase(), formatter:p => { if(!p.length)return''; return `<div style="font-size:11px;color:#7AA8C0">${fmtFecha(p[0].axisValue)}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:${pv(p[0])>=0?'#C71E1D':'#0A9396'}">${pv(p[0])>=0?'+':''}${pv(p[0]).toFixed(1)}%</div>`; }, axisPointer:{lineStyle:{color:'rgba(199,30,29,.2)',type:'dashed'}} },
       grid:{ left:4,right:4,top:6,bottom:4,containLabel:true },
-      xAxis:{ type:'category', data:e.inter.map(p=>p.fecha), show:false },
+      xAxis:{ type:'category', data:e.serie.map(p=>p.fecha), show:false },
       yAxis:{ type:'value', show:false },
       series:[{
-        type:'line', data:e.inter.map(p=>p.valor), symbol:'none', smooth:.3,
+        type:'line', data:e.serie.map(p=>p.valor), symbol:'none', smooth:.3,
         lineStyle:{width:2,color}, itemStyle:{color},
         areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:color+'30'},{offset:1,color:color+'05'}]}},
-        markPoint:{ data:[{coord:[e.inter[e.inter.length-1].fecha, e.lastVal]}], symbol:'circle', symbolSize:7, itemStyle:{color,borderColor:'#fff',borderWidth:1.5}, label:{show:false} }
+        markPoint:{ data:[{coord:[e.serie[e.serie.length-1].fecha, e.lastVal]}], symbol:'circle', symbolSize:7, itemStyle:{color,borderColor:'#fff',borderWidth:1.5}, label:{show:false} }
       }]
     });
   });
@@ -1247,9 +1314,10 @@ function generateReport() {
   }
 
   if (G.productos) {
-    r += `4. PRODUCTOS DESTACADOS\n${'─'.repeat(36)}\n`;
-    const subs = (G.productos.top_subidas||[]).slice(0,5);
-    const bajs = (G.productos.top_bajadas||[]).slice(0,5);
+    r += `4. PRODUCTOS DESTACADOS (interanual)\n${'─'.repeat(36)}\n`;
+    const prodI = G.productos.interanual || G.productos;
+    const subs = (prodI.top_subidas||[]).slice(0,5);
+    const bajs = (prodI.top_bajadas||[]).slice(0,5);
     if (subs.length) {
       r += `   Mayores subidas:\n`;
       subs.forEach(p => { r += `     ▲ ${p.producto}: +${fmt(p.var_interanual,1)}%\n`; });
@@ -1383,6 +1451,7 @@ async function init() {
     document.getElementById('foot-year').textContent = new Date().getFullYear();
 
     renderAll();
+    wireToggles();
     document.getElementById('btn-report').style.display = '';
   } catch(err) {
     console.error(err);

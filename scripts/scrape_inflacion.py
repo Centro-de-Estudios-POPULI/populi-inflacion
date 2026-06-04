@@ -533,21 +533,32 @@ def procesar_productos(contenido_prod: bytes, contenido_pond: bytes) -> dict:
             ultimo = serie[-1]["valor"]
             hace_12 = serie[-13]["valor"] if len(serie) >= 13 else serie[0]["valor"]
             var_12 = ((ultimo / hace_12) - 1) * 100 if hace_12 else 0
+            prev_mes = serie[-2]["valor"]
+            var_mes = ((ultimo / prev_mes) - 1) * 100 if prev_mes else 0
             pond = ponderaciones.get(desc.strip(), None)
             productos.append({
                 "producto": desc.strip(),
                 "var_interanual": round(var_12, 4),
+                "var_mensual": round(var_mes, 4),
                 "fecha": serie[-1]["fecha"],
                 "ponderacion": pond,
             })
         break
 
-    productos.sort(key=lambda x: x.get("var_interanual", 0), reverse=True)
+    fecha = productos[0]["fecha"] if productos else None
+
+    def _top(metric: str) -> dict:
+        ordenado = sorted(productos, key=lambda x: x.get(metric) or 0, reverse=True)
+        return {
+            "top_subidas": ordenado[:15],
+            "top_bajadas": list(reversed(ordenado[-15:])),
+            "total_productos": len(ordenado),
+        }
 
     return {
-        "top_subidas": productos[:15],
-        "top_bajadas": list(reversed(productos[-15:])),
-        "total_productos": len(productos),
+        "fecha": fecha,
+        "interanual": _top("var_interanual"),
+        "mensual": _top("var_mensual"),
     }
 
 
@@ -593,21 +604,30 @@ def procesar_productos_historico(contenido_prod: bytes) -> dict:
         break
 
     # Calcular var interanual y seleccionar top/bottom 10
-    ranked = []
+    ranked_i = []
+    ranked_m = []
     for nombre, serie in all_prods.items():
         if len(serie) < 13:
             continue
         ultimo = serie[-1]["valor"]
         hace_12 = serie[-13]["valor"]
+        prev_mes = serie[-2]["valor"]
         var_12 = ((ultimo / hace_12) - 1) * 100 if hace_12 else 0
-        ranked.append((nombre, var_12))
+        var_mes = ((ultimo / prev_mes) - 1) * 100 if prev_mes else 0
+        ranked_i.append((nombre, var_12))
+        ranked_m.append((nombre, var_mes))
 
-    ranked.sort(key=lambda x: x[1], reverse=True)
-    top_names = [r[0] for r in ranked[:10]] + [r[0] for r in ranked[-10:]]
+    ranked_i.sort(key=lambda x: x[1], reverse=True)
+    ranked_m.sort(key=lambda x: x[1], reverse=True)
+    # Union de top/bottom 10 por interanual y por mensual (los modos del toggle).
+    top_names = (
+        [r[0] for r in ranked_i[:10]] + [r[0] for r in ranked_i[-10:]] +
+        [r[0] for r in ranked_m[:10]] + [r[0] for r in ranked_m[-10:]]
+    )
 
     resultado = {}
     for nombre in top_names:
-        if nombre in all_prods:
+        if nombre in all_prods and nombre not in resultado:
             resultado[nombre] = all_prods[nombre]
 
     return resultado
@@ -916,7 +936,7 @@ def main() -> None:
         productos = procesar_productos(archivos["productos"], archivos["ponderaciones"])
         out_path = DATA_DIR / "ipc_productos.json"
         out_path.write_text(json.dumps(productos, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-        print(f"  [OK] ipc_productos.json - {productos['total_productos']} productos")
+        print(f"  [OK] ipc_productos.json - {productos['interanual']['total_productos']} productos (interanual + mensual)")
 
         descomp = calcular_descomposicion(archivos["productos"], archivos["ponderaciones"])
         out_path = DATA_DIR / "ipc_descomposicion.json"
