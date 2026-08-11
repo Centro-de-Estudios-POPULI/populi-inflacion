@@ -43,10 +43,10 @@
     .kpi-val{font-family:'JetBrains Mono',monospace;font-size:1.25rem;font-weight:700}
     .kpi-d{display:inline-flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:5px;margin-top:5px}
     .kpi-d.up{background:rgba(199,30,29,.08);color:#C71E1D}
-    .kpi-d.down{background:rgba(5,150,105,.08);color:#0A9396}
+    .kpi-d.down{background:rgba(10,147,150,.08);color:#0A9396}
     .kpi-d.flat{background:rgba(100,116,139,.08);color:#64748B}
     [data-theme="dark"] .kpi-d.up{background:rgba(199,30,29,.15)}
-    [data-theme="dark"] .kpi-d.down{background:rgba(5,150,105,.15)}
+    [data-theme="dark"] .kpi-d.down{background:rgba(10,147,150,.15)}
 
     .main-grid{display:grid;grid-template-columns:3fr 2fr;grid-template-rows:540px;gap:16px}
     @media(max-width:900px){.main-grid{grid-template-columns:1fr;grid-template-rows:480px auto}}
@@ -62,7 +62,7 @@
     .lp.dashed{border-top-style:dashed}
     .rng-grp{display:flex;gap:4px}
     .rng{padding:4px 10px;border:1.5px solid var(--border);border-radius:7px;background:transparent;cursor:pointer;font-family:'Inter',sans-serif;font-size:.65rem;font-weight:600;color:var(--muted);transition:all .2s}
-    [data-theme="dark"] .rng{border-color:var(--dark-border);color:#94A3B8}
+    [data-theme="dark"] .rng{border-color:var(--dark-border);color:#64748B}
     .rng:hover,.rng.active{border-color:var(--populi);color:var(--populi)}
     [data-theme="dark"] .rng:hover,[data-theme="dark"] .rng.active{border-color:var(--populi-light);color:var(--populi-light)}
     .chart-area{flex:1;min-height:0}
@@ -92,19 +92,19 @@
     .dt{font-family:'JetBrains Mono',monospace;font-weight:600;padding:1px 5px;border-radius:4px;font-size:.82em;white-space:nowrap}
     .dt-r{background:rgba(199,30,29,.08);color:#C71E1D}
     .dt-t{background:rgba(10,147,150,.08);color:#0A9396}
-    .dt-a{background:rgba(217,119,6,.08);color:#EE9B00}
-    .dt-i{background:rgba(99,102,241,.08);color:#005F73}
+    .dt-a{background:rgba(238,155,0,.08);color:#EE9B00}
+    .dt-i{background:rgba(0,95,115,.08);color:#005F73}
     .ctx{background:var(--cream);border-radius:6px;padding:8px 10px;border-left:3px solid var(--populi);margin-top:6px}
     [data-theme="dark"] .ctx{background:var(--navy-light)}
     .ctx p{font-size:.66rem;line-height:1.55;color:var(--slate-light)}
-    [data-theme="dark"] .ctx p{color:#94A3B8}
+    [data-theme="dark"] .ctx p{color:#64748B}
     .ctx p strong{color:var(--navy)}
     [data-theme="dark"] .ctx p strong{color:#E2E8F0}
     .panel-ft{padding:10px 14px;border-top:1px solid var(--border)}
     [data-theme="dark"] .panel-ft{border-color:var(--dark-border)}
-    .amp{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:8px 0;border-radius:8px;font-family:'Inter',sans-serif;font-size:.66rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--populi);background:rgba(139,26,26,.06);border:1.5px solid rgba(139,26,26,.15);transition:all .2s;text-decoration:none;cursor:pointer}
-    [data-theme="dark"] .amp{background:rgba(192,0,0,.08);border-color:rgba(192,0,0,.2);color:var(--populi-light)}
-    .amp:hover{background:rgba(139,26,26,.12);border-color:rgba(139,26,26,.3);transform:translateY(-1px);box-shadow:0 2px 8px rgba(139,26,26,.1);text-decoration:none}
+    .amp{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:8px 0;border-radius:8px;font-family:'Inter',sans-serif;font-size:.66rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--populi);background:rgba(199,30,29,.06);border:1.5px solid rgba(199,30,29,.15);transition:all .2s;text-decoration:none;cursor:pointer}
+    [data-theme="dark"] .amp{background:rgba(232,112,107,.08);border-color:rgba(232,112,107,.2);color:var(--populi-light)}
+    .amp:hover{background:rgba(199,30,29,.12);border-color:rgba(199,30,29,.3);transform:translateY(-1px);box-shadow:0 2px 8px rgba(199,30,29,.1);text-decoration:none}
     .amp svg{width:13px;height:13px}
 
     .edu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:16px}
@@ -120,7 +120,7 @@
     .edu.open .edu-c{display:block}
     .edu-c p{font-size:.66rem;line-height:1.6;color:var(--slate-light);margin-bottom:6px}
     .edu-c p:last-child{margin-bottom:0}
-    [data-theme="dark"] .edu-c p{color:#94A3B8}
+    [data-theme="dark"] .edu-c p{color:#64748B}
     .edu-c p strong{color:var(--navy)}
     [data-theme="dark"] .edu-c p strong{color:#E2E8F0}
 
@@ -301,12 +301,12 @@
           <p class="pb-desc"><strong>${pm.nucleo.productos} productos</strong> (${pm.nucleo.ponderacion_total}% de la canasta). Bienes y servicios con precios más estables — excluye alimentos y energía para reflejar la tendencia de fondo.</p>
         </div>
         <div class="pb">
-          <div class="pb-lbl" style="color:#EE9B00;background:rgba(217,119,6,.08);border-left-color:#EE9B00">Alimentos</div>
+          <div class="pb-lbl" style="color:#EE9B00;background:rgba(238,155,0,.08);border-left-color:#EE9B00">Alimentos</div>
           <div class="pb-val" style="color:#EE9B00">${fv(al.valor)}</div>
           <p class="pb-desc"><strong>${pm.alimentos.productos} productos</strong> (${pm.alimentos.ponderacion_total}%). Alimentos y bebidas, sensibles a factores estacionales, climáticos y de tipo de cambio que encarece las importaciones.</p>
         </div>
         <div class="pb">
-          <div class="pb-lbl" style="color:#005F73;background:rgba(99,102,241,.08);border-left-color:#005F73">Energía</div>
+          <div class="pb-lbl" style="color:#005F73;background:rgba(0,95,115,.08);border-left-color:#005F73">Energía</div>
           <div class="pb-val" style="color:#005F73">${fv(en.valor)}</div>
           <p class="pb-desc"><strong>${pm.energia.productos} productos</strong> (${pm.energia.ponderacion_total}%). Combustibles, electricidad y gas, influenciados por mercados internacionales y regulaciones gubernamentales.</p>
         </div>
@@ -368,7 +368,7 @@
           axisLine:{lineStyle:{color:d?'#2A3A50':'#E2DDD3'}},
           axisTick:{show:false},
           axisLabel:{
-            fontFamily:'Inter',fontSize:10,fontWeight:500,color:d?'#64748B':'#94A3B8',
+            fontFamily:'Inter',fontSize:10,fontWeight:500,color:d?'#64748B':'#64748B',
             formatter:function(v,idx){
               if(idx===0||idx===dates.length-1)return fdate(v);
               if(idx>0){const cm=v.split('-')[1],pm2=dates[idx-1].split('-')[1];if(cm!==pm2)return fdate(v)}
@@ -380,9 +380,9 @@
         },
         yAxis:{
           type:'value',
-          splitLine:{lineStyle:{color:d?'#1E1E1E':'#F1F5F9',type:'dashed'}},
+          splitLine:{lineStyle:{color:d?'#141414':'#F1F5F9',type:'dashed'}},
           axisLine:{show:false},axisTick:{show:false},
-          axisLabel:{fontFamily:'JetBrains Mono',fontSize:11,color:d?'#64748B':'#94A3B8',formatter:v=>(v>=0?'+':'')+v.toFixed(0)+'%'}
+          axisLabel:{fontFamily:'JetBrains Mono',fontSize:11,color:d?'#64748B':'#64748B',formatter:v=>(v>=0?'+':'')+v.toFixed(0)+'%'}
         },
         series:series
       },true);
