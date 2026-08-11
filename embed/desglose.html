@@ -10,12 +10,12 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
   <style>
     :root {
-      --populi:#8B1A1A;--populi-dark:#6B0300;--populi-light:#C00000;
+      --populi:#C71E1D;--populi-dark:#6B0300;--populi-light:#E8706B;
       --cream:#F5EFE0;--brown-dark:#3D2B1F;
       --navy:#0D1B2A;--navy-light:#1A2940;--slate:#475569;--slate-light:#64748B;
       --warm-white:#FAF8F3;--border:#E2DDD3;--dark-border:#2A3A50;
       --bg:var(--warm-white);--card:#FFFFFF;--text:var(--brown-dark);--muted:var(--slate-light);
-      --ct-gen:#C71E1D;--ct-nuc:#0A9396;--ct-ali:#D97706;--ct-ene:#6366F1;
+      --ct-gen:#C71E1D;--ct-nuc:#0A9396;--ct-ali:#EE9B00;--ct-ene:#005F73;
       --radius:12px;
     }
     [data-theme="dark"]{--bg:#080808;--card:#141414;--text:#E2E8F0;--muted:#64748B;--border:#2A3A50;--cream:#1A2940}
@@ -43,7 +43,7 @@
     .kpi-val{font-family:'JetBrains Mono',monospace;font-size:1.25rem;font-weight:700}
     .kpi-d{display:inline-flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:5px;margin-top:5px}
     .kpi-d.up{background:rgba(199,30,29,.08);color:#C71E1D}
-    .kpi-d.down{background:rgba(5,150,105,.08);color:#059669}
+    .kpi-d.down{background:rgba(5,150,105,.08);color:#0A9396}
     .kpi-d.flat{background:rgba(100,116,139,.08);color:#64748B}
     [data-theme="dark"] .kpi-d.up{background:rgba(199,30,29,.15)}
     [data-theme="dark"] .kpi-d.down{background:rgba(5,150,105,.15)}
@@ -92,8 +92,8 @@
     .dt{font-family:'JetBrains Mono',monospace;font-weight:600;padding:1px 5px;border-radius:4px;font-size:.82em;white-space:nowrap}
     .dt-r{background:rgba(199,30,29,.08);color:#C71E1D}
     .dt-t{background:rgba(10,147,150,.08);color:#0A9396}
-    .dt-a{background:rgba(217,119,6,.08);color:#D97706}
-    .dt-i{background:rgba(99,102,241,.08);color:#6366F1}
+    .dt-a{background:rgba(217,119,6,.08);color:#EE9B00}
+    .dt-i{background:rgba(99,102,241,.08);color:#005F73}
     .ctx{background:var(--cream);border-radius:6px;padding:8px 10px;border-left:3px solid var(--populi);margin-top:6px}
     [data-theme="dark"] .ctx{background:var(--navy-light)}
     .ctx p{font-size:.66rem;line-height:1.55;color:var(--slate-light)}
@@ -190,7 +190,7 @@
           <div class="chart-area" id="chart"></div>
           <div class="chart-src">
             <span class="chart-src-t">Fuente: <a href="${meta.url_nacional}" target="_blank">INE Bolivia</a> · Elaboración: <a href="https://populi.org.bo" target="_blank">Centro de Estudios POPULI</a> · Datos al: ${fdate(last('general').fecha)}</span>
-            <svg viewBox="0 0 310 130" xmlns="http://www.w3.org/2000/svg" class="wm"><text x="6" y="112" font-family="'Playfair Display',Georgia,serif" font-size="145" font-weight="700" fill="${dk()?'#C00000':'#8B1A1A'}">P</text><text x="92" y="87" font-family="'Playfair Display',Georgia,serif" font-size="55" font-weight="400" font-style="italic" letter-spacing="1" fill="${dk()?'#F5EFE0':'#3D2B1F'}">opuli</text></svg>
+            <svg viewBox="0 0 310 130" xmlns="http://www.w3.org/2000/svg" class="wm"><text x="6" y="112" font-family="'Playfair Display',Georgia,serif" font-size="145" font-weight="700" fill="${dk()?'#E8706B':'#C71E1D'}">P</text><text x="92" y="87" font-family="'Playfair Display',Georgia,serif" font-size="55" font-weight="400" font-style="italic" letter-spacing="1" fill="${dk()?'#F5EFE0':'#3D2B1F'}">opuli</text></svg>
           </div>
         </div>
         <div class="panel">
@@ -221,8 +221,8 @@
     const SERIES=[
       {key:'general',label:'General',color:'#C71E1D',dashed:false},
       {key:'nucleo',label:`Núcleo (${pm.nucleo.ponderacion_total}%)`,color:'#0A9396',dashed:false},
-      {key:'alimentos',label:`Alimentos (${pm.alimentos.ponderacion_total}%)`,color:'#D97706',dashed:false},
-      {key:'energia',label:`Energía (${pm.energia.ponderacion_total}%)`,color:'#6366F1',dashed:true},
+      {key:'alimentos',label:`Alimentos (${pm.alimentos.ponderacion_total}%)`,color:'#EE9B00',dashed:false},
+      {key:'energia',label:`Energía (${pm.energia.ponderacion_total}%)`,color:'#005F73',dashed:true},
     ];
     let active=new Set(SERIES.map(s=>s.key));
 
@@ -275,7 +275,7 @@
       const g=yoy.general[idx],nu=yoy.nucleo[idx],al=yoy.alimentos[idx],en=yoy.energia[idx];
       document.getElementById('p-date').textContent=fdate(g.fecha);
 
-      const comps=[{n:'Alimentos',v:al.valor,c:'#D97706'},{n:'Energía',v:en.valor,c:'#6366F1'},{n:'Núcleo',v:nu.valor,c:'#0A9396'}];
+      const comps=[{n:'Alimentos',v:al.valor,c:'#EE9B00'},{n:'Energía',v:en.valor,c:'#005F73'},{n:'Núcleo',v:nu.valor,c:'#0A9396'}];
       comps.sort((a,b)=>b.v-a.v);
       const driver=comps[0];
 
@@ -301,13 +301,13 @@
           <p class="pb-desc"><strong>${pm.nucleo.productos} productos</strong> (${pm.nucleo.ponderacion_total}% de la canasta). Bienes y servicios con precios más estables — excluye alimentos y energía para reflejar la tendencia de fondo.</p>
         </div>
         <div class="pb">
-          <div class="pb-lbl" style="color:#D97706;background:rgba(217,119,6,.08);border-left-color:#D97706">Alimentos</div>
-          <div class="pb-val" style="color:#D97706">${fv(al.valor)}</div>
+          <div class="pb-lbl" style="color:#EE9B00;background:rgba(217,119,6,.08);border-left-color:#EE9B00">Alimentos</div>
+          <div class="pb-val" style="color:#EE9B00">${fv(al.valor)}</div>
           <p class="pb-desc"><strong>${pm.alimentos.productos} productos</strong> (${pm.alimentos.ponderacion_total}%). Alimentos y bebidas, sensibles a factores estacionales, climáticos y de tipo de cambio que encarece las importaciones.</p>
         </div>
         <div class="pb">
-          <div class="pb-lbl" style="color:#6366F1;background:rgba(99,102,241,.08);border-left-color:#6366F1">Energía</div>
-          <div class="pb-val" style="color:#6366F1">${fv(en.valor)}</div>
+          <div class="pb-lbl" style="color:#005F73;background:rgba(99,102,241,.08);border-left-color:#005F73">Energía</div>
+          <div class="pb-val" style="color:#005F73">${fv(en.valor)}</div>
           <p class="pb-desc"><strong>${pm.energia.productos} productos</strong> (${pm.energia.ponderacion_total}%). Combustibles, electricidad y gas, influenciados por mercados internacionales y regulaciones gubernamentales.</p>
         </div>
         <div class="ctx"><p>${analysis}</p></div>`;

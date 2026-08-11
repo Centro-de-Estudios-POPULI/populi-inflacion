@@ -10,13 +10,13 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
   <style>
     :root {
-      --populi:#8B1A1A; --populi-dark:#6B0300; --populi-light:#C00000; --populi-gold:#D4A017;
+      --populi:#C71E1D; --populi-dark:#6B0300; --populi-light:#E8706B; --populi-gold:#EE9B00;
       --cream:#F5EFE0; --brown:#5C3D1E; --brown-dark:#3D2B1F;
       --navy:#0D1B2A; --navy-light:#1A2940; --slate:#475569; --slate-light:#64748B;
       --warm-white:#FAF8F3; --light-gray:#F1EDE5; --border:#E2DDD3; --dark-border:#2A3A50;
       --bg:var(--warm-white); --card:#FFFFFF; --text:var(--brown-dark); --muted:var(--slate-light);
-      --ct-mensual:#0A9396; --ct-acumulada:#D97706; --ct-interanual:#C71E1D; --ct-meta:#6366F1;
-      --ct-general:#C71E1D; --ct-nucleo:#0A9396; --ct-alimentos:#D97706; --ct-energia:#6366F1;
+      --ct-mensual:#0A9396; --ct-acumulada:#EE9B00; --ct-interanual:#C71E1D; --ct-meta:#005F73;
+      --ct-general:#C71E1D; --ct-nucleo:#0A9396; --ct-alimentos:#EE9B00; --ct-energia:#005F73;
       --radius:12px;
     }
     [data-theme="dark"] {
@@ -52,7 +52,7 @@
     .kpi-val{font-family:'JetBrains Mono',monospace;font-size:1.25rem;font-weight:700}
     .kpi-d{display:inline-flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;font-size:.68rem;font-weight:600;padding:1px 7px;border-radius:5px;margin-top:5px}
     .kpi-d.up{background:rgba(199,30,29,.08);color:#C71E1D}
-    .kpi-d.down{background:rgba(5,150,105,.08);color:#059669}
+    .kpi-d.down{background:rgba(5,150,105,.08);color:#0A9396}
     .kpi-d.flat{background:rgba(100,116,139,.08);color:#64748B}
     [data-theme="dark"] .kpi-d.up{background:rgba(199,30,29,.15)}
     [data-theme="dark"] .kpi-d.down{background:rgba(5,150,105,.15)}
@@ -110,8 +110,8 @@
     .dt{font-family:'JetBrains Mono',monospace;font-weight:600;padding:1px 5px;border-radius:4px;font-size:.82em;white-space:nowrap}
     .dt-r{background:rgba(199,30,29,.08);color:#C71E1D}
     .dt-t{background:rgba(10,147,150,.08);color:#0A9396}
-    .dt-a{background:rgba(217,119,6,.08);color:#D97706}
-    .dt-i{background:rgba(99,102,241,.08);color:#6366F1}
+    .dt-a{background:rgba(217,119,6,.08);color:#EE9B00}
+    .dt-i{background:rgba(99,102,241,.08);color:#005F73}
     .ctx{background:var(--cream);border-radius:6px;padding:8px 10px;border-left:3px solid var(--populi);margin-top:6px}
     [data-theme="dark"] .ctx{background:var(--navy-light)}
     .ctx p{font-size:.66rem;line-height:1.55;color:var(--slate-light)}
@@ -225,7 +225,7 @@
           <div class="chart-area" id="chart"></div>
           <div class="chart-src">
             <span class="chart-src-t">Fuente: <a href="${meta.url_nacional}" target="_blank">INE Bolivia</a> · Elaboración: <a href="https://populi.org.bo" target="_blank">Centro de Estudios POPULI</a> · Datos al: ${fdate(hoy.fecha)}</span>
-            <svg viewBox="0 0 310 130" xmlns="http://www.w3.org/2000/svg" class="wm"><text x="6" y="112" font-family="'Playfair Display',Georgia,serif" font-size="145" font-weight="700" fill="${dk()?'#C00000':'#8B1A1A'}">P</text><text x="92" y="87" font-family="'Playfair Display',Georgia,serif" font-size="55" font-weight="400" font-style="italic" letter-spacing="1" fill="${dk()?'#F5EFE0':'#3D2B1F'}">opuli</text></svg>
+            <svg viewBox="0 0 310 130" xmlns="http://www.w3.org/2000/svg" class="wm"><text x="6" y="112" font-family="'Playfair Display',Georgia,serif" font-size="145" font-weight="700" fill="${dk()?'#E8706B':'#C71E1D'}">P</text><text x="92" y="87" font-family="'Playfair Display',Georgia,serif" font-size="55" font-weight="400" font-style="italic" letter-spacing="1" fill="${dk()?'#F5EFE0':'#3D2B1F'}">opuli</text></svg>
           </div>
         </div>
         <div class="panel">
@@ -266,14 +266,14 @@
 
     const SERIES_VAR = [
       {key:'var_mensual',label:'Mensual',color:'#0A9396',dashed:true},
-      {key:'var_acumulada',label:'Acumulada',color:'#D97706',dashed:false},
+      {key:'var_acumulada',label:'Acumulada',color:'#EE9B00',dashed:false},
       {key:'var_interanual',label:'A 12 meses',color:'#C71E1D',dashed:false},
     ];
     const SERIES_DESC = [
       {key:'general',label:'General',color:'#C71E1D',dashed:false},
       {key:'nucleo',label:`Núcleo (${desc.meta.nucleo.ponderacion_total}%)`,color:'#0A9396',dashed:false},
-      {key:'alimentos',label:`Alimentos (${desc.meta.alimentos.ponderacion_total}%)`,color:'#D97706',dashed:false},
-      {key:'energia',label:`Energía (${desc.meta.energia.ponderacion_total}%)`,color:'#6366F1',dashed:true},
+      {key:'alimentos',label:`Alimentos (${desc.meta.alimentos.ponderacion_total}%)`,color:'#EE9B00',dashed:false},
+      {key:'energia',label:`Energía (${desc.meta.energia.ponderacion_total}%)`,color:'#005F73',dashed:true},
     ];
     let activeVar = new Set(SERIES_VAR.map(s=>s.key));
     let activeDesc = new Set(SERIES_DESC.map(s=>s.key));
@@ -383,8 +383,8 @@
           <p class="pb-desc">En <strong>${fdate(m.fecha)}</strong>, los precios variaron <span class="dt dt-t">${fv(m.valor)}</span> respecto a <strong>${prevLbl}</strong>. Variación porcentual del nivel general de precios entre dos meses consecutivos, basada en el IPC.</p>
         </div>
         <div class="pb">
-          <div class="pb-lbl" style="color:#D97706;background:rgba(217,119,6,.08);border-left-color:#D97706">Acumulada ${yr}</div>
-          <div class="pb-val" style="color:#D97706">${fv(a.valor)}</div>
+          <div class="pb-lbl" style="color:#EE9B00;background:rgba(217,119,6,.08);border-left-color:#EE9B00">Acumulada ${yr}</div>
+          <div class="pb-val" style="color:#EE9B00">${fv(a.valor)}</div>
           <p class="pb-desc">Desde enero de <strong>${yr}</strong>, los precios acumulan <span class="dt dt-a">${fv(a.valor)}</span>. Efecto conjunto de las variaciones mensuales desde el inicio del año calendario.</p>
         </div>
         <div class="pb">
@@ -404,7 +404,7 @@
       const g=descYoY.general[dIdx], nu=descYoY.nucleo[dIdx], al=descYoY.alimentos[dIdx], en=descYoY.energia[dIdx];
       document.getElementById('p-date').textContent=fdate(g.fecha);
 
-      const maxComp=[{n:'Alimentos',v:al.valor,c:'#D97706'},{n:'Energía',v:en.valor,c:'#6366F1'},{n:'Núcleo',v:nu.valor,c:'#0A9396'}];
+      const maxComp=[{n:'Alimentos',v:al.valor,c:'#EE9B00'},{n:'Energía',v:en.valor,c:'#005F73'},{n:'Núcleo',v:nu.valor,c:'#0A9396'}];
       maxComp.sort((a,b)=>b.v-a.v);
       const driver=maxComp[0];
 
@@ -428,13 +428,13 @@
           <p class="pb-desc"><strong>${desc.meta.nucleo.productos} productos</strong> (${desc.meta.nucleo.ponderacion_total}% de la canasta). Excluye alimentos y energía por su volatilidad, reflejando la tendencia de fondo de los precios.</p>
         </div>
         <div class="pb">
-          <div class="pb-lbl" style="color:#D97706;background:rgba(217,119,6,.08);border-left-color:#D97706">Alimentos</div>
-          <div class="pb-val" style="color:#D97706">${fv(al.valor)}</div>
+          <div class="pb-lbl" style="color:#EE9B00;background:rgba(217,119,6,.08);border-left-color:#EE9B00">Alimentos</div>
+          <div class="pb-val" style="color:#EE9B00">${fv(al.valor)}</div>
           <p class="pb-desc"><strong>${desc.meta.alimentos.productos} productos</strong> (${desc.meta.alimentos.ponderacion_total}%). Alimentos y bebidas, sensibles a factores estacionales y climáticos que generan variaciones significativas a lo largo del año.</p>
         </div>
         <div class="pb">
-          <div class="pb-lbl" style="color:#6366F1;background:rgba(99,102,241,.08);border-left-color:#6366F1">Energía</div>
-          <div class="pb-val" style="color:#6366F1">${fv(en.valor)}</div>
+          <div class="pb-lbl" style="color:#005F73;background:rgba(99,102,241,.08);border-left-color:#005F73">Energía</div>
+          <div class="pb-val" style="color:#005F73">${fv(en.valor)}</div>
           <p class="pb-desc"><strong>${desc.meta.energia.productos} productos</strong> (${desc.meta.energia.ponderacion_total}%). Combustibles, electricidad y gas, influenciados por mercados internacionales y regulaciones gubernamentales.</p>
         </div>
         <div class="ctx"><p>${analysis}</p></div>`;
@@ -474,8 +474,8 @@
       series.push({
         name:'Meta PGE 2026 ('+META_PGE+'%)',type:'line',
         data:dates.map(()=>META_PGE),symbol:'none',
-        lineStyle:{width:1.5,color:'#6366F1',type:[5,4]},
-        itemStyle:{color:'#6366F1'},z:1
+        lineStyle:{width:1.5,color:'#005F73',type:[5,4]},
+        itemStyle:{color:'#005F73'},z:1
       });
 
       setOption(dates,series,colors,d,startIdx,true);
@@ -529,7 +529,7 @@
               if(p.value==null)return;
               const isMeta=p.seriesName.includes('Meta');
               h+=`<div style="display:flex;align-items:center;gap:8px;margin:3px 0">
-                <span style="width:8px;height:8px;border-radius:50%;background:${isMeta?'#6366F1':p.color};display:inline-block"></span>
+                <span style="width:8px;height:8px;border-radius:50%;background:${isMeta?'#005F73':p.color};display:inline-block"></span>
                 <span style="flex:1;font-size:11px;color:rgba(255,255,255,.7)">${p.seriesName}</span>
                 <span style="font-family:'JetBrains Mono';font-weight:700;font-size:12px">${fv(p.value)}</span>
               </div>`;
