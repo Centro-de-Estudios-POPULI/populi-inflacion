@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light" style="--acento:#C71E1D">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qué productos subieron y bajaron · Populi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="comun/monitor.css" />
+  <style>
+    /* El alto del lienzo lo fija el código: en el ranking sale de las filas (el IPC general, dos rótulos de bloque
+       y 20 productos); en los paneles, de las filas de paneles. */
+    #chart { height: 600px; }
+    /* Ranking del mes en el panel de lectura (vista Paneles): barras que salen de la base hacia cada lado.
+       El mismo de pib_crecimiento_sectores.html. */
+    .rk { margin: 4px 0 10px; }
+    .rk-t { font-size: .58rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 5px; }
+    .rk-f { display: grid; grid-template-columns: minmax(0, 1fr) 38% 3.9rem; align-items: center; gap: 8px; padding: 2px 4px; }
+    .rk-f.pib { border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 3px; }
+    .rk-f.sel { background: var(--suave); box-shadow: inset 2px 0 0 var(--acento); }
+    .rk-n { font-size: .68rem; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rk-f.pib .rk-n { font-weight: 700; color: var(--tinta); }
+    .rk-b { position: relative; height: 9px; }
+    .rk-b::before { content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--tenue); }
+    .rk-b i { position: absolute; top: 0; bottom: 0; }
+    .rk-v { font: 600 .68rem/1.3 'JetBrains Mono', monospace; text-align: right; white-space: nowrap; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <script src="comun/monitor.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="sec-hd">
+      <div class="sec-title"><span class="accent-bar"></span>Qué productos subieron y bajaron</div>
+      <div class="sec-sub" id="sub">Los productos de la canasta del IPC que más subieron y más bajaron de precio</div>
+    </div>
+
+    <div class="hz-bar">
+      <div class="hz-item"><span class="hz-lbl">Vista</span><div class="hz-grp" id="b-vista"></div></div>
+      <div class="hz-item"><span class="hz-lbl">Medida</span><div class="hz-grp" id="b-medida"></div></div>
+      <div class="hz-item" id="it-hor" style="display:none"><span class="hz-lbl">Aporte a la</span><div class="hz-grp" id="b-hor"></div></div>
+      <div class="hz-item" id="it-grupo" style="display:none"><span class="hz-lbl">Grupo</span><div class="hz-grp" id="b-grupo"></div></div>
+      <div class="hz-item" id="it-escala" style="display:none"><span class="hz-lbl">Escala</span><div class="hz-grp" id="b-escala"></div></div>
+    </div>
+
+    <div class="kpi-grid" id="kpis"></div>
+
+    <div class="main-grid">
+      <div class="chart-card">
+        <div class="chart-ctrl" id="ctrl" style="display:none"><div class="tog-grp" id="pastillas"></div></div>
+        <div class="grafico" id="chart"><div class="loading"><div class="spinner"></div><span>Cargando los productos del IPC…</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-hd"><span class="panel-hd-t">Lectura del indicador</span><span class="panel-hd-d" id="panel-fecha"></span></div>
+        <div class="panel-body" id="panel"></div>
+      </div>
+    </div>
+
+    <div class="edu-grid" id="preguntas"></div>
+    <div class="source"><span class="source-txt" id="fuente"></span></div>
+  </div>
+
+  <script>
+  (function () {
+    var C = PM.C, NB = ' ';
+    // Semántica de PRECIOS: que un precio SUBA es rojo; que BAJE, turquesa. En los paneles, sobre la base (más caro
+    // que entonces) el tinte rosado PM.tinte(false); debajo, el turquesa. En el aporte: suma en rojo, resta en turquesa.
+    var SUBE = { claro: '#C71E1D', oscuro: '#E8706B' }, BAJA = { claro: '#0A9396', oscuro: '#94D2BD' };
+    var signo = function (v) { return v >= 0 ? SUBE : BAJA; };
+    var TINTA = C.tinta, REF = { claro: C.pizarra, oscuro: C.gris };
+    // El ranking muestra 10 por bloque: los que traen la serie de su índice (ipc_productos_hist.json), con la que se
+    // dibujan los paneles.
+    var N = 10;
+    // Nombres cortos para la columna del ranking y los paneles; el nombre del INE va en el tooltip y el panel. Un
+    // producto que no esté acá conserva su nombre (y se recorta si no entra).
+    var CORTO = {
+      'Transporte interprovincial en ómnibus/flota': 'Flota interprovincial', 'Transporte interdepartamental en ómnibus/flota': 'Flota interdepartamental',
+      'Transporte en avión internacional': 'Avión internacional', 'Transporte en avión nacional': 'Avión nacional',
+      'Transporte en micro, bus o colectivo': 'Micro, bus o colectivo', 'Transporte en minibús': 'Minibús', 'Transporte en trufi': 'Trufi',
+      'Transporte en taxi': 'Taxi', 'Carne de res sin hueso': 'Carne de res', 'Otro plato extra/especial': 'Plato extra o especial',
+      'Aparato telefónico móvil/celular': 'Teléfono celular', 'Crema para la piel (manos y/o cuerpo)': 'Crema para la piel',
+      'Betarraga/remolacha': 'Betarraga', 'Cal/estuco': 'Cal y estuco', 'Toallas sanitarias/higiénicas': 'Toallas higiénicas',
+      'Lavadora y/o secadora de ropa': 'Lavadora o secadora', 'Desodorante/Antitranspirante': 'Desodorante', 'Pepino y pepinillo': 'Pepino',
+      'Pimentón/morrón': 'Pimentón', 'Frejol/poroto': 'Frejol', 'Capacitación en temas de informática': 'Cursos de informática',
+      'Conjunto de verduras picadas/surtido de legumbres en bolsa': 'Verduras picadas en bolsa', 'Otros despojos comestibles de animales': 'Otros despojos',
+      'Vidrio cristal para ventana': 'Vidrio para ventana', 'Brasier / sostén': 'Sostén', 'Garrafa de gas vacía': 'Garrafa vacía',
+      'Alquiler de prendas de vestir': 'Alquiler de ropa', 'Detergente para lavar ropa': 'Detergente de ropa', 'Gas natural (GNV)': 'Gas natural (GNV)'
+    };
+    var MED = { ia: { nombre: 'Interanual', campo: 'var_interanual', aporte: 'aporte_interanual', clave: 'interanual', palabra: 'interanual' },
+                mes: { nombre: 'Mensual', campo: 'var_mensual', aporte: 'aporte_mensual', clave: 'mensual', palabra: 'mensual' } };
+    // medida: 'ia' · 'mes' (cuánto cambió el precio) · 'ap' (cuánto movió el IPC); hor: el período del aporte
+    var estado = { vista: 'ranking', medida: 'ia', hor: 'ia', grupo: 'sub', escala: 'propia', fila: null, pi: null, pk: null };
+    var activas = new Set(['gen', '_fija']);   // «Comparar con el IPC general»: una pastilla y una clave fija
+    var PR, HI, GEN, META, K = [], POS = {}, IG = [], H = {}, T, TOTAL, LISTA = {}, P = {}, grafico;
+    var DATA = [], hover = null, geo = [], hoverG = null, ORDEN = [], XS = [], IV = [], REB = {}, B = -1;
+
+    PM.cargar(['ipc_productos.json', 'ipc_productos_hist.json', 'ipc_general.json', 'metadata.json']).then(function (r) {
+      PR = r[0]; HI = r[1]; GEN = r[2]; META = r[3];
+      K = GEN.indice.map(function (p) { return p.fecha; });
+      K.forEach(function (f, i) { POS[f] = i; });
+      var alinear = function (s) { var o = K.map(function () { return null; }); (s || []).forEach(function (p) { if (POS[p.fecha] != null && p.valor != null) o[POS[p.fecha]] = p.valor; }); return o; };
+      IG = alinear(GEN.indice);
+      Object.keys(HI).forEach(function (n) { if (Array.isArray(HI[n])) H[n] = alinear(HI[n]); });
+      T = POS[PR.fecha];
+      if (T == null) throw new Error('ipc_productos.json es de ' + PR.fecha + ', fuera de ipc_general.json');
+      TOTAL = PR.interanual.total_productos;
+      XS = K.map(function (f) { var p = PM.periodo(f); return p.a + p.m / 12; });
+      // Cada producto de las listas: su variación y su aporte (los publica el script del INE: los aportes de toda la
+      // canasta suman la variación del IPC) y su peso. Si faltara el aporte, se calcula con el índice: peso × (índice
+      // hoy − índice antes) / índice general antes.
+      ['ia', 'mes'].forEach(function (m) {
+        var b = base(m), M = MED[m];
+        var item = function (x, g, j, porAporte) {
+          var n = x.producto, h = H[n], id = 'p:' + n;
+          var a = x[M.aporte] != null ? x[M.aporte] : h && b >= 0 && h[T] != null && h[b] != null && x.ponderacion != null ? x.ponderacion * (h[T] - h[b]) / IG[b] : null;
+          P[id] = P[id] || { n: n, w: x.ponderacion };
+          return { k: id, n: n, g: g, r: j + 1, w: x.ponderacion, ia: x.var_interanual, mes: x.var_mensual, aia: x.aporte_interanual, ames: x.aporte_mensual,
+            pv: x[M.campo], a: a, v: porAporte ? a : x[M.campo] };
+        };
+        var puestos = function (arr, g, porAporte) { return (arr || []).filter(function (x) { return H[x.producto]; }).slice(0, N).map(function (x, j) { return item(x, g, j, porAporte); }); };
+        var f = PR[M.clave], ap = PR.aporte && PR.aporte[M.clave];
+        LISTA[m] = { sub: puestos(f.top_subidas, 'sub'), baj: puestos(f.top_bajadas, 'baj') };
+        if (ap) LISTA['ap' + m] = { sub: puestos(ap.suman, 'sub', true), baj: puestos(ap.restan, 'baj', true), total: ap.total_pp };
+      });
+
+      PM.botonera(document.getElementById('b-vista'), [['ranking', 'Ranking'], ['paneles', 'Paneles']],
+        estado.vista, function (v) { estado.vista = v; controles(); cifras(); grafico.redibujar(); panelActual(); });
+      PM.botonera(document.getElementById('b-medida'), [['ia', 'Interanual'], ['mes', 'Mensual']].concat(LISTA.apia ? [['ap', 'Aporte']] : []),
+        estado.medida, function (v) { estado.medida = v; estado.pi = null; estado.pk = null; todo(); });
+      PM.botonera(document.getElementById('b-hor'), [['ia', 'Interanual'], ['mes', 'Mensual']],
+        estado.hor, function (v) { estado.hor = v; estado.pi = null; estado.pk = null; todo(); });
+      PM.botonera(document.getElementById('b-grupo'), [['sub', 'Subidas'], ['baj', 'Bajadas']],
+        estado.grupo, function (v) { estado.grupo = v; estado.pk = null; controles(); grafico.redibujar(); panelActual(); });
+      PM.botonera(document.getElementById('b-escala'), [['propia', 'Por panel'], ['comun', 'Común']],
+        estado.escala, function (v) { estado.escala = v; grafico.redibujar(); });
+      PM.pastillas(document.getElementById('pastillas'), [{ k: 'gen', nombre: 'Comparar con el IPC general', color: REF, forma: 'punteada' }],
+        activas, function () { controles(); grafico.redibujar(); });
+      controles(); cifras();
+      var el = document.getElementById('chart');
+      el.innerHTML = '';
+      grafico = PM.montar(el, opciones);
+      grafico.chart.on('click', function (p) { if (estado.vista !== 'ranking') return; var x = DATA[p.dataIndex]; if (x && x.n) panel(x.k); });
+      // la fila bajo el cursor: banda tenue y el nombre en negrita (los rótulos de bloque no se resaltan)
+      grafico.chart.on('updateAxisPointer', function (e) {
+        if (estado.vista !== 'ranking') return;
+        var info = (e.axesInfo || []).filter(function (a) { return a.axisDim === 'y'; })[0];
+        var j = info ? +info.value : null;
+        if (j === hover) return;
+        if (hover != null) grafico.chart.dispatchAction({ type: 'downplay', seriesIndex: 0, dataIndex: hover });
+        hover = j;
+        if (j != null) grafico.chart.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: j });
+      });
+      var soltar = function () {
+        if (hover != null && estado.vista === 'ranking') grafico.chart.dispatchAction({ type: 'downplay', seriesIndex: 0, dataIndex: hover });
+        hover = null;
+      };
+      grafico.chart.on('globalout', soltar);
+      grafico.chart.on('hidetip', soltar);
+      var donde = function (e) {
+        var b = el.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
+        hoverG = null;
+        geo.forEach(function (g, j) { if (x >= g.x0 && x <= g.x1 && y >= g.y0 && y <= g.y1) hoverG = j; });
+      };
+      el.addEventListener('pointermove', donde, true);
+      el.addEventListener('pointerdown', donde, true);
+      panelActual();
+      PM.alCambiarTema(function () { cifras(); panelActual(); });
+      PM.preguntas(document.getElementById('preguntas'), preguntas());
+      document.getElementById('fuente').innerHTML = 'Fuente: <a href="' + META.url_nacional + '" target="_blank" rel="noopener">INE — Índice de Precios al Consumidor por producto (base ' + META.base + ' = 100) y ponderaciones de la canasta</a> · Elaboración: Centro de Estudios POPULI · Datos al: ' + PM.fecha(PR.fecha);
+    }).catch(function (e) { console.error(e); PM.error(document.getElementById('chart')); });
+
+    // ── Medidas y textos ─────────────────────────────────────────────────────────────────────────────────────
+    var dos = function (n) { return (n < 10 ? '0' : '') + n; };
+    // el mes con que se compara, buscado por FECHA: el mismo mes del año anterior o el mes anterior
+    function base(m, i) {
+      var p = PM.periodo(K[i == null ? T : i]);
+      var f = m === 'ia' ? (p.a - 1) + '-' + dos(p.m + 1) : p.m ? p.a + '-' + dos(p.m) : (p.a - 1) + '-12';
+      return POS[f] != null ? POS[f] : -1;
+    }
+    var esAp = function () { return estado.medida === 'ap'; };
+    var hor = function () { return esAp() ? estado.hor : estado.medida; };   // 'ia' o 'mes': contra qué mes se compara
+    var med = function () { return MED[hor()]; };
+    var lista = function () { return LISTA[(esAp() ? 'ap' : '') + hor()]; };
+    // la variación del IPC general, desde su índice
+    function varGen(m, i) { var b = base(m, i); return b >= 0 && IG[i] != null && IG[b] ? (IG[i] / IG[b] - 1) * 100 : null; }
+    function varProd(n, m, i) { var h = H[n], b = base(m, i); return h && b >= 0 && h[i] != null && h[b] ? (h[i] / h[b] - 1) * 100 : null; }
+    // el aporte de un producto en un mes cualquiera (para las minilíneas): peso × Δ índice / índice general antes
+    function aporteProd(n, m, i) { var h = H[n], b = base(m, i), w = P['p:' + n] && P['p:' + n].w; return h && w != null && b >= 0 && h[i] != null && h[b] != null && IG[b] ? w * (h[i] - h[b]) / IG[b] : null; }
+    var fmt = function (v) { return PM.pct(v, 1, true); };
+    var pp = function (v) { return PM.pp(v, 2); };
+    var peso = function (w) { return w == null ? '—' : w < 0.005 ? '<0,01%' : PM.num(w, 2) + '%'; };
+    var corto = function (n) { return CORTO[n] || n; };
+    var suma = function (a, f) { return a.reduce(function (z, x) { return z + (f(x) || 0); }, 0); };
+    var ROT = function () { return esAp() ? { sub: 'Lo que más sumó', baj: 'Lo que más restó', bsub: 'Suman', bbaj: 'Restan' } : { sub: 'Más subieron', baj: 'Más bajaron', bsub: 'Subidas', bbaj: 'Bajadas' }; };
+
+    // Al cambiar de medida en el ranking la opción se FUSIONA: los productos que siguen en la lista se deslizan a su
+    // nuevo puesto, los que salen se van y los nuevos entran (animation:true explícito: un redibujo quieto del molde
+    // la dejó en false y la fusión la conservaría)
+    function todo() {
+      controles(); cifras();
+      if (estado.vista === 'ranking') { var o = opciones(); o.animation = true; grafico.chart.setOption(o); PM.programarAlto(); }
+      else grafico.redibujar();
+      panelActual();
+    }
+
+    function controles() {
+      var rk = estado.vista === 'ranking', b = base(hor()), f = PM.fecha(PR.fecha), fb = PM.fecha(K[b]), R = ROT(), ap = esAp();
+      document.getElementById('it-hor').style.display = ap ? '' : 'none';
+      document.getElementById('it-grupo').style.display = rk ? 'none' : '';
+      document.getElementById('it-escala').style.display = rk ? 'none' : '';
+      document.getElementById('ctrl').style.display = rk ? 'none' : '';
+      var bg = document.querySelectorAll('#b-grupo .hz-btn');
+      if (bg.length === 2) { bg[0].textContent = R.bsub; bg[1].textContent = R.bbaj; }
+      PM.imagen = { proporcion: 1 };   // veintitrés filas o once paneles: la imagen cuadrada les da alto
+      var cuales = ap ? 'los ' + N + ' que más ' + (estado.grupo === 'sub' ? 'sumaron' : 'restaron') + ' a la inflación ' + med().palabra
+        : 'las ' + N + ' mayores ' + (estado.grupo === 'sub' ? 'subidas' : 'bajadas') + ' ' + med().palabra + 'es';
+      document.getElementById('sub').textContent = !rk
+        ? 'Precio de cada producto frente a ' + fb + ' (= 100), en los últimos tres años. Desde ' + fb + ', el relleno rosado marca que está más caro que entonces y el turquesa, más barato. Son ' + cuales + (activas.has('gen') ? '; la raya gris repite el IPC general.' : '.')
+        : ap
+          ? 'Los ' + N + ' productos que más sumaron a la inflación ' + med().palabra + ' de ' + f + ' y los ' + N + ' que más restaron, en puntos porcentuales (pp). El aporte junta cuánto cambió el precio (la cifra gris) con el peso del producto en la canasta. Los aportes de los ' + PM.num(TOTAL, 0) + ' productos suman la inflación de la primera fila.'
+          : 'Los ' + N + ' productos de la canasta del IPC cuyo precio más subió y los ' + N + ' que más bajaron entre ' + fb + ' y ' + f + ' (%). La columna «peso» dice cuánto cuenta cada uno en el IPC general (la primera fila y la raya vertical).';
+    }
+
+    function cifras() {
+      var m = hor(), L = lista(), g = varGen(m, T), d = g - varGen(m, T - 1), sub = L.sub[0], baj = L.baj[0], ap = esAp();
+      var serieGen = []; for (var j = Math.max(0, T - 23); j <= T; j++) serieGen.push(varGen(m, j));
+      var serieP = function (n) { var o = []; for (var j = Math.max(0, T - 11); j <= T; j++) o.push(ap ? aporteProd(n, m, j) : varProd(n, m, j)); return o; };
+      var aS = suma(L.sub, function (x) { return x.a; }), wS = suma(L.sub, function (x) { return x.w; });
+      var cif = function (v) { return ap ? pp(v) : fmt(v); };
+      document.getElementById('kpis').innerHTML =
+        PM.kpi({ color: TINTA, rotulo: 'Inflación ' + med().palabra + ' · ' + PM.fecha(PR.fecha), valor: PM.pct(g, 2, true),
+          delta: PM.flecha(d, 0.01) + ' ' + PM.num(Math.abs(d), 2) + NB + 'pp', tono: Math.abs(d) < 0.01 ? 'neutro' : d > 0 ? 'malo' : 'bueno', serie: serieGen }) +
+        PM.kpi({ color: SUBE, rotulo: ap ? 'Suma más' : 'Mayor subida', valor: cif(sub.v), delta: corto(sub.n), tono: 'malo', serie: serieP(sub.n) }) +
+        PM.kpi({ color: BAJA, rotulo: ap ? 'Resta más' : 'Mayor bajada', valor: cif(baj.v), delta: corto(baj.n), tono: 'bueno', serie: serieP(baj.n) }) +
+        PM.kpi({ color: SUBE, rotulo: ap ? 'Suman los ' + L.sub.length + ' primeros' : 'Aportan las ' + L.sub.length + ' subidas', valor: pp(aS), delta: PM.pct(wS, 1) + ' de la canasta', tono: 'neutro' });
+    }
+
+    var medidor;
+    function ancho(t, fuente) { medidor = medidor || document.createElement('canvas').getContext('2d'); medidor.font = fuente; return medidor.measureText(t).width; }
+    // recorta un texto con «…» hasta que entre en el ancho
+    function recortar(t, max, fuente) { if (ancho(t, fuente) <= max) return t; while (t.length > 3 && ancho(t + '…', fuente) > max) t = t.slice(0, -1); return t.trim() + '…'; }
+
+    function opciones() {
+      var el = document.getElementById('chart'), ch = echarts.getInstanceByDom(el);
+      // durante la descarga el molde dibuja fuera de pantalla con un tamaño fijo (corrimiento a −40000 px): se usa ese
+      var exp = el.style.left === '-40000px';
+      return estado.vista === 'ranking' ? opcionesRanking(el, ch, exp) : opcionesPaneles(el, ch, exp);
+    }
+    // ⛔ ECharts no agranda el lienzo si sólo cambia el alto del div: se fija el alto y se llama resize()
+    function fijarAlto(el, ch, H) {
+      if (Math.abs(el.clientHeight - H) > 1) el.style.height = H + 'px';
+      if (ch && Math.abs(ch.getHeight() - el.clientHeight) > 1) ch.resize();
+    }
+
+    // ── Vista «Ranking»: el lenguaje de pib_ranking_sectores.html, en dos bloques y con la columna del peso ────────
+    function opcionesRanking(el, ch, exp) {
+      var L = lista(), m = hor(), ap = esAp(), g = varGen(m, T), chico = PM.pequeno(), dk = PM.dk(), R = ROT();
+      // casilleros: 0 el IPC general · 1 rótulo del primer bloque · sus productos · rótulo del segundo · sus productos
+      DATA = [{ k: 'gen', v: g, w: 100 }, { k: 'h:sub', hdr: R.sub }].concat(L.sub).concat([{ k: 'h:baj', hdr: R.baj }]).concat(L.baj);
+      var RH = chico ? 25 : 26;
+      if (!exp) fijarAlto(el, ch, DATA.length * RH + 8);
+      var W = el.clientWidth, izq = chico ? 12 : 6, der = chico ? 12 : 8;
+      var pz = dk ? '#8A9699' : '#5C6B70', tinta = PM.col(C.tinta), card = PM.var('--card') || '#ffffff';
+      var fN = chico ? 10.5 : 12, fV = chico ? 10.5 : 11.5, fR = chico ? 9.5 : 10, fP = chico ? 9 : 10, fH = chico ? 8.5 : 9, fS = chico ? 9.5 : 10.5;
+      var mono = PM.mono(), inter = PM.inter(), fNom = '700 ' + fN + 'px ' + inter, fHdr = '700 ' + fH + 'px ' + inter;
+      var fCif = '600 ' + fV + 'px ' + mono, fSec = '500 ' + fS + 'px ' + mono;
+      // la columna de nombres tiene tope (los nombres del INE pueden ser largos): lo que no entra se recorta
+      // en el teléfono sin la columna del puesto (los rótulos de bloque ya ordenan): el ancho va a las barras
+      var rankW = chico ? 0 : Math.ceil(ancho('10', '500 ' + fR + 'px ' + mono)) + 8, tope = chico ? Math.round(W * 0.42) : 200;
+      var nom = function (x) { return x.k === 'gen' ? 'IPC general' : recortar(corto(x.n), tope, fNom); };
+      var nameW = Math.ceil(Math.max.apply(null, DATA.map(function (x) { return x.hdr ? ancho(x.hdr.toUpperCase(), fHdr) : ancho(nom(x), fNom); })));
+      // la columna del peso: una barrita (en PC) y la cifra; la barrita mide contra el producto más pesado de las listas
+      var BARP = chico ? 0 : 28, wMax = Math.max.apply(null, Object.keys(P).map(function (k) { return P[k].w || 0; })) || 1;
+      var pesoW = Math.ceil(Math.max(ancho('PESO', fHdr), Math.max.apply(null, DATA.filter(function (x) { return !x.hdr; }).map(function (x) { return ancho(peso(x.w), '500 ' + fP + 'px ' + mono); }))));
+      var xNom = izq + rankW, xPeso = xNom + nameW + (chico ? 6 : 14), xPesoFin = xPeso + BARP + (BARP ? 6 : 0) + pesoW;
+      var plotL = xPesoFin + (chico ? 8 : 16), plotW = W - der - plotL;
+      // Escala horizontal: el cero y todas las barras adentro, y lugar para las cifras. En el aporte el general no
+      // lleva barra (es la SUMA de los aportes: a su escala las barras de los productos no se verían): su cifra va
+      // junto al cero.
+      var conBarra = function (x) { return x.v != null && !(ap && x.k === 'gen'); };
+      var vals = DATA.filter(conBarra).map(function (x) { return x.v; });
+      var lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
+      var PAD = 3, GAP = 4, SEP = 4;
+      var cifra = function (x) { return x.k === 'gen' ? PM.pct(x.v, ap ? 2 : 1, true) : ap ? pp(x.v) : fmt(x.v); };
+      // en el aporte, la variación del precio va de dato secundario, en gris; junto al general, qué es su cifra
+      var sec = function (x) { return !ap ? '' : x.k === 'gen' ? (chico ? '' : 'la suma de los ' + PM.num(TOTAL, 0) + ' aportes') : fmt(x.pv); };
+      var wC = function (x) { return ancho(cifra(x), fCif) + 2 * PAD; }, wS = function (x) { var t = sec(x); return t ? ancho(t, fSec) + 2 * PAD : 0; };
+      // En el teléfono la cifra de una barra negativa va a la derecha del cero, en el lado vacío de su bloque (los que
+      // bajan o restan no tienen nada a la derecha), y en el aporte la variación de los que suman va a la izquierda del
+      // cero: sin reservarles lugar en el extremo de cada barra, las barras miden el doble.
+      var junto = chico;
+      var span = (hi - lo) || 1, k = plotW / span, pxL = 4, pxR = 4;
+      for (var n = 0; n < 5; n++) {
+        pxL = 4; pxR = 4;
+        DATA.forEach(function (x) {
+          if (x.v == null || x.hdr) return;
+          var v = x.v, c = wC(x), s = wS(x), afuera = c + (s && !(junto && v >= 0) ? SEP + s : 0);
+          if (!conBarra(x) || (v < 0 && junto)) pxR = Math.max(pxR, GAP + c + (s ? SEP + s : 0) - hi * k);
+          else if (v < 0) pxL = Math.max(pxL, GAP + afuera - (v - lo) * k);
+          else {
+            pxR = Math.max(pxR, GAP + afuera - (hi - v) * k);
+            if (s && junto) pxL = Math.max(pxL, GAP + s + lo * k);   // la variación, a la izquierda del cero
+          }
+        });
+        k = (plotW - pxL - pxR) / span;
+      }
+      var X = function (v) { return plotL + pxL + (v - lo) * k; };
+      var cero = X(0), xg = X(g);
+      var lineaCero = dk ? 'rgba(226,232,240,.55)' : 'rgba(0,18,25,.5)', filete = dk ? '#2A3A50' : '#E2DDD3', barraPeso = dk ? '#6E7A7D' : '#8A9699';
+      var f = PM.fecha(PR.fecha);
+      return {
+        animationDurationUpdate: 650, animationEasingUpdate: 'cubicInOut',
+        grid: { left: izq, right: der, top: 4, bottom: 4, containLabel: false },
+        xAxis: { type: 'value', min: lo, max: hi, show: false },
+        yAxis: { type: 'category', inverse: true, data: DATA.map(function (x, j) { return String(j); }),
+          axisLine: { show: false }, axisTick: { show: false }, axisLabel: { show: false }, splitLine: { show: false } },
+        tooltip: PM.tooltip(function (ps) {
+          if (!ps.length) return '';
+          var x = DATA[ps[0].dataIndex];
+          if (!x || x.hdr) return '';
+          if (x.k === 'gen') return PM.ttTitulo('IPC general', (ap ? 'Aporte · ' : med().nombre + ' · ') + f) + PM.ttFila(TINTA, 'Variación ' + med().palabra, PM.pct(g, 2, true), 'area') +
+            PM.ttTotal('Productos en la canasta', PM.num(TOTAL, 0));
+          panel(x.k);
+          // el vidrio no se parte en líneas: el nombre del INE sólo si es corto
+          var nINE = x.n !== corto(x.n) && x.n.length <= 44 ? x.n : '';
+          if (ap) return PM.ttTitulo(corto(x.n), nINE) + PM.ttFila(signo(x.v), 'Aporte · ' + f, pp(x.v), 'area') +
+            PM.ttFila(null, 'Variación ' + med().palabra, fmt(x.pv)) + PM.ttFila(null, 'Peso en la canasta', peso(x.w)) + PM.ttTotal('IPC general', PM.pct(g, 2, true));
+          return PM.ttTitulo(corto(x.n), nINE) + PM.ttFila(signo(x.v), med().nombre + ' · ' + f, fmt(x.v), 'area') +
+            PM.ttFila(null, 'Peso en la canasta', peso(x.w)) + PM.ttFila(null, 'Aporte al IPC', x.a == null ? '—' : pp(x.a)) +
+            PM.ttTotal('IPC general', PM.pct(g, 2, true));
+        // sin la banda del puntero del eje: la dibuja cada fila al resaltarse (así un rótulo de bloque no se ilumina)
+        }, { axisPointer: { type: 'none' } }),
+        series: [{
+          type: 'custom', id: 'ranking', name: ap ? 'Aporte' : med().nombre, coordinateSystem: 'cartesian2d',
+          encode: { x: 0, y: 1, tooltip: 0 }, emphasis: { focus: 'none' },
+          // cada fila lleva el id de su producto: el que sigue en la lista al cambiar de medida se desliza
+          data: DATA.map(function (x, j) { return { id: x.k, value: [x.v == null || !conBarra(x) ? 0 : x.v, j] }; }),
+          renderItem: function (params, api) {
+            var x = DATA[params.dataIndex], cs = params.coordSys, cy = api.coord([0, api.value(1)])[1], rh = api.size([0, 1])[1];
+            if (x.hdr) return { type: 'group', y: cy, transition: ['y'], diffChildrenByName: true, children: [
+              // rótulo del bloque, pegado a sus filas, y el de la columna del peso
+              { type: 'text', name: 'rotulo', z2: 5, x: xNom, y: rh / 2 - 3, style: { text: x.hdr.toUpperCase(), font: fHdr, fill: pz, align: 'left', verticalAlign: 'bottom' } },
+              { type: 'text', name: 'pesoT', z2: 5, x: xPesoFin, y: rh / 2 - 3, style: { text: 'PESO', font: fHdr, fill: pz, align: 'right', verticalAlign: 'bottom' } }
+            ] };
+            var bh = Math.round(Math.min(18, rh * 0.6)), barra = conBarra(x), x1 = barra ? X(x.v) : cero, neg = barra && x.v < 0, esGen = x.k === 'gen';
+            var colB = esGen ? tinta : PM.col(signo(x.v)), colT = esGen ? tinta : PM.tx(signo(x.v));
+            // dónde van la cifra y el dato secundario: afuera del extremo de la barra (o junto al cero)
+            var c = wC(x), s = sec(x), derecha = !neg || junto, xc = derecha ? (neg || !barra ? cero : x1) + GAP : x1 - GAP;
+            var xs = derecha ? xc + c + SEP : xc - c - SEP, alS = derecha ? 'left' : 'right';
+            if (s && junto && barra && !neg) { xs = cero - GAP; alS = 'right'; }
+            var hijos = [
+              // la banda tenue de la fila bajo el cursor (la de pib_ranking_sectores.html, que allí pone el puntero del eje)
+              { type: 'rect', name: 'banda', z2: 0, silent: true, shape: { x: cs.x, y: -rh / 2, width: cs.width, height: rh }, style: { fill: 'rgba(0,0,0,0)' },
+                emphasis: { style: { fill: dk ? 'rgba(226,232,240,.07)' : 'rgba(0,18,25,.05)' } } },
+              { type: 'text', name: 'cifra', z2: 5, x: xc, y: 0, transition: ['x'],
+                style: { text: cifra(x), font: fCif, fill: colT, align: derecha ? 'left' : 'right', verticalAlign: 'middle', backgroundColor: card, padding: [1, PAD] } },
+              { type: 'text', name: 'nombre', z2: 5, x: xNom, y: 0,
+                style: { text: nom(x), fontFamily: inter, fontSize: fN, fontWeight: esGen ? 700 : 500, fill: tinta, align: 'left', verticalAlign: 'middle' },
+                emphasis: { style: { fontWeight: 700 } } },
+              // el peso: la cifra chica gris y, en PC, una barrita
+              { type: 'text', name: 'peso', z2: 5, x: xPesoFin, y: 0, style: { text: esGen ? '100%' : peso(x.w), fontFamily: mono, fontSize: fP, fontWeight: 500, fill: pz, align: 'right', verticalAlign: 'middle' } }
+            ];
+            if (barra) hijos.push({ type: 'rect', name: 'barra', z2: 2, shape: { x: Math.min(cero, x1), y: -bh / 2, width: Math.max(1, Math.abs(x1 - cero)), height: bh }, style: { fill: colB } });
+            if (s) hijos.push({ type: 'text', name: 'sec', z2: 5, x: xs, y: 0, transition: ['x'],
+              style: { text: s, font: fSec, fill: pz, align: alS, verticalAlign: 'middle', backgroundColor: card, padding: [1, PAD] } });
+            if (BARP && !esGen && x.w) hijos.push({ type: 'rect', name: 'pesoB', z2: 2, shape: { x: xPeso, y: -2.5, width: Math.max(1, x.w / wMax * BARP), height: 5 }, style: { fill: barraPeso } });
+            if (!esGen && rankW) hijos.push({ type: 'text', name: 'puesto', z2: 5, x: cs.x, y: 0, style: { text: String(x.r), fontFamily: mono, fontSize: fR, fontWeight: 500, fill: pz, align: 'left', verticalAlign: 'middle' } });
+            if (esGen) {
+              var abajo = rh / 2, fin = cs.y + cs.height - cy;
+              hijos.push({ type: 'line', name: 'filete', z2: 1, silent: true, shape: { x1: cs.x, y1: abajo, x2: cs.x + cs.width, y2: abajo }, style: { stroke: filete, lineWidth: 1 } });
+              hijos.push({ type: 'line', name: 'cero', z2: 1, silent: true, shape: { x1: cero, y1: cs.y + 2 - cy, x2: cero, y2: fin - 2 }, style: { stroke: lineaCero, lineWidth: 1 } });
+              // la raya del general sólo en las variaciones: en el aporte el general es la suma, no un umbral
+              if (!ap) hijos.push({ type: 'line', name: 'rayaG', z2: 0, silent: true, shape: { x1: xg, y1: abajo + 3, x2: xg, y2: fin - 2 }, style: { stroke: pz, lineWidth: 1.25, lineDash: [4, 3], opacity: 0.8 } });
+            }
+            // las piezas se emparejan por nombre al fusionar: cada fila no tiene siempre las mismas (la barra, el dato
+            // secundario), y por posición ECharts transformaba una pieza en otra (la barrita del peso quedaba corrida)
+            return { type: 'group', y: cy, transition: ['y'], diffChildrenByName: true, children: hijos };
+          }
+        }]
+      };
+    }
+
+    // ── Vista «Paneles»: el lenguaje de pib_crecimiento_sectores.html ──────────────────────────────────────────
+    function escala(vals, ref, aire, divs) {
+      var v = vals.filter(function (x) { return x != null; });
+      var lo = Math.min.apply(null, v.concat([ref])), hi = Math.max.apply(null, v.concat([ref])), r = (hi - lo) || 1;
+      lo -= r * aire; hi += r * aire;
+      var paso = Math.pow(10, Math.floor(Math.log10((hi - lo) / divs)));
+      [1, 2, 2.5, 5, 10].some(function (m) { if ((hi - lo) / (paso * m) <= divs) { paso *= m; return true; } return false; });
+      return { lo: Math.floor(lo / paso + 1e-9) * paso, hi: Math.ceil(hi / paso - 1e-9) * paso, paso: paso };
+    }
+    function cortar(pts, ref) {
+      var aug = [];
+      for (var i = 0; i < pts.length; i++) {
+        aug.push(pts[i]);
+        if (i < pts.length - 1) {
+          var y0 = pts[i][1], y1 = pts[i + 1][1];
+          if ((y0 - ref) * (y1 - ref) < 0) { var t = (ref - y0) / (y1 - y0); aug.push([pts[i][0] + t * (pts[i + 1][0] - pts[i][0]), ref]); }
+        }
+      }
+      return { arriba: aug.map(function (p) { return [p[0], Math.max(p[1], ref)]; }), abajo: aug.map(function (p) { return [p[0], Math.min(p[1], ref)]; }) };
+    }
+    // Los paneles: el índice de cada producto llevado a 100 en el mes con que se compara (hace 12 meses o el mes
+    // anterior), en los últimos tres años. El último punto menos 100 es la variación del precio.
+    function datosPaneles() {
+      var p = PM.periodo(PR.fecha), ini = POS[(p.a - 3) + '-' + dos(p.m + 1)];
+      B = base(hor());
+      IV = []; for (var i = ini != null ? ini : 0; i <= T; i++) IV.push(i);
+      var prods = lista()[estado.grupo];
+      ORDEN = ['gen'].concat(prods.map(function (x) { return x.k; }));
+      REB = {};
+      ORDEN.forEach(function (k) {
+        var s = k === 'gen' ? IG : H[P[k].n];
+        REB[k] = K.map(function (_, i) { return s[i] != null && s[B] ? s[i] / s[B] * 100 : null; });
+      });
+    }
+    function opcionesPaneles(el, ch, exp) {
+      datosPaneles();
+      var chico = PM.pequeno(), dk = PM.dk(), ref = 100, ap = esAp(), porK = {};
+      lista()[estado.grupo].forEach(function (x) { porK[x.k] = x; });
+      var W = el.clientWidth, cols = exp || W >= 900 ? 4 : W >= 470 ? 3 : 2;
+      var nf = Math.ceil(ORDEN.length / cols);
+      var fN = chico ? 11 : 11.5, fC = chico ? 16 : 18, CAB = Math.round(fN + 4 + fC + 15);
+      var EJE = 18, SEPY = chico ? 14 : 16, SEPX = chico ? 14 : 18, izq = chico ? 10 : 2, der = chico ? 12 : 8, alto;
+      if (exp) alto = Math.floor((el.clientHeight - nf * (CAB + EJE) - (nf - 1) * SEPY) / nf);
+      else { alto = cols === 2 ? 92 : cols === 3 ? 100 : 96; fijarAlto(el, ch, nf * (CAB + alto + EJE) + (nf - 1) * SEPY); }
+      var conGen = activas.has('gen'), pts = {};
+      ORDEN.forEach(function (k) { pts[k] = IV.map(function (i) { return [XS[i], REB[k][i]]; }).filter(function (q) { return q[1] != null; }); });
+      var todos = []; ORDEN.forEach(function (k) { pts[k].forEach(function (q) { todos.push(q[1]); }); });
+      var comun = escala(todos, ref, 0.05, 5);
+      var esc = ORDEN.map(function (k) {
+        if (estado.escala === 'comun') return comun;
+        var v = pts[k].map(function (q) { return q[1]; });
+        if (conGen && k !== 'gen') v = v.concat(pts.gen.map(function (q) { return q[1]; }));
+        return escala(v, ref, 0.12, 3);
+      });
+      var fA = chico ? 9.5 : 10, fuenteEje = '500 ' + fA + 'px ' + PM.mono(), MARG = 6, gut = 0;
+      var dec = function (s) { return Math.abs(s.paso - Math.round(s.paso)) > 1e-9 ? 1 : 0; };
+      esc.forEach(function (s) { for (var v = s.lo; v <= s.hi + s.paso / 2; v += s.paso) gut = Math.max(gut, ancho(PM.num(v, dec(s)), fuenteEje)); });
+      gut = Math.ceil(gut) + MARG;
+      var cw = (W - izq - der - (cols - 1) * SEPX) / cols, plotW = cw - gut;
+      var x0a = XS[IV[0]], x1a = XS[T], span = Math.floor(x1a) - Math.ceil(x0a), caben = Math.max(2, Math.floor(plotW / 38));
+      var paso = [1, 2, 3, 4, 5].filter(function (t) { return Math.floor(span / t) + 1 <= caben; })[0] || 5;
+      var pz = dk ? '#8A9699' : '#5C6B70', tinta = PM.col(C.tinta), card = PM.var('--card') || '#ffffff';
+      var grilla = dk ? '#2A3A50' : '#E2DDD3', lineaEje = dk ? '#3A4549' : '#C9CDCE';
+      var fNom = '700 ' + fN + 'px ' + PM.inter(), fCif = '700 ' + fC + 'px ' + PM.mono(), fPeso = '500 ' + (chico ? 9.5 : 10) + 'px ' + PM.inter();
+      var xb = XS[B];
+      geo = [];
+      var grid = [], xAxis = [], yAxis = [], series = [], graphic = [];
+      ORDEN.forEach(function (k, g) {
+        var r = Math.floor(g / cols), c = g % cols, x0 = izq + c * (cw + SEPX), y0 = r * (CAB + alto + EJE + SEPY), esGen = k === 'gen';
+        geo.push({ k: k, x0: x0, x1: x0 + cw, y0: y0, y1: y0 + CAB + alto + EJE });
+        grid.push({ left: Math.round(x0 + gut), top: y0 + CAB, width: Math.floor(plotW), height: alto, containLabel: false });
+        xAxis.push({ type: 'value', gridIndex: g, min: x0a, max: x1a, interval: 1 / 12,
+          axisLine: { onZero: false, lineStyle: { color: lineaEje } }, axisTick: { show: false }, splitLine: { show: false },
+          axisLabel: { fontFamily: PM.mono(), fontSize: fA, fontWeight: 600, color: dk ? 'rgba(226,232,240,.75)' : 'rgba(0,18,25,.7)', margin: 6,
+            showMinLabel: false, showMaxLabel: false,
+            formatter: function (v) { var y = Math.round(v); return Math.abs(v - y) < 1e-6 && y % paso === 0 ? String(y) : ''; } },
+          axisPointer: { show: true, type: 'line', snap: true, label: { show: false }, lineStyle: { color: dk ? 'rgba(226,232,240,.32)' : 'rgba(0,18,25,.22)', width: 1 } } });
+        var s = esc[g], d = dec(s);
+        yAxis.push({ type: 'value', gridIndex: g, min: s.lo, max: s.hi, interval: s.paso,
+          axisLine: { show: false }, axisTick: { show: false },
+          splitLine: { lineStyle: { color: grilla, type: [3, 3], opacity: dk ? 0.7 : 1 } },
+          axisLabel: { color: pz, fontFamily: PM.mono(), fontSize: fA, fontWeight: 500, margin: MARG, align: 'right', formatter: function (v) { return PM.num(v, d); } } });
+        // El relleno sólo en el tramo que se compara, de la base al último mes: sobre la base (más caro que entonces)
+        // rosado; debajo (más barato) turquesa. Antes de la base la línea queda sola, de contexto: con la inflación de
+        // estos años casi todo era más barato antes, y rellenarlo pintaba de turquesa hasta las mayores subidas.
+        var dat = pts[k], cut = cortar(dat.filter(function (q) { return q[0] >= xb - 1e-6; }), ref);
+        var area = function (datos, sube, id) {
+          return { type: 'line', id: id + g, xAxisIndex: g, yAxisIndex: g, data: datos, silent: true, symbol: 'none', z: 1,
+            lineStyle: { width: 0 }, areaStyle: { origin: ref, color: PM.tinte(!sube), opacity: 1 }, tooltip: { show: false }, emphasis: { disabled: true } };
+        };
+        series.push(area(cut.arriba, true, 'arr'), area(cut.abajo, false, 'aba'));
+        if (conGen && !esGen) series.push({ type: 'line', id: 'gen' + g, name: '_gen' + g, xAxisIndex: g, yAxisIndex: g, data: pts.gen, silent: true, z: 2,
+          symbol: 'none', lineStyle: { width: 1, color: pz, type: [5, 4] }, tooltip: { show: false }, emphasis: { disabled: true } });
+        // la serie en TINTA; puntos huecos en los dos meses que se comparan: la base y el último
+        var ult = dat.length - 1;
+        series.push({ type: 'line', id: 'l' + g, name: esGen ? 'IPC general' : corto(P[k].n), xAxisIndex: g, yAxisIndex: g, z: 4,
+          data: dat.map(function (q, j) {
+            return Math.abs(q[0] - xb) < 1e-6 || j === ult ? { value: q, symbol: 'circle', symbolSize: j === ult ? 7 : 5 } : { value: q, symbol: 'none' };
+          }),
+          showSymbol: true, symbol: 'none', lineStyle: { width: 1.5, color: tinta, cap: 'round', join: 'round' },
+          itemStyle: { color: card, borderColor: tinta, borderWidth: 1.25 }, emphasis: { disabled: true },
+          markLine: { silent: true, symbol: 'none', animation: false, label: { show: false },
+            lineStyle: { color: dk ? 'rgba(226,232,240,.7)' : 'rgba(0,18,25,.65)', width: 0.9, type: [4, 3] }, data: [{ yAxis: ref }] } });
+        // cabeza: el nombre en tinta y, debajo, la variación del precio en el color de su signo; al lado, el peso (o,
+        // en el aporte, cuánto movió el IPC)
+        var nom = recortar(esGen ? 'IPC general' : corto(P[k].n), cw, fNom), v = dat[ult][1] - 100, cif = fmt(v);
+        graphic.push({ type: 'text', silent: true, x: x0, y: y0, style: { text: nom, font: fNom, fill: tinta, align: 'left', verticalAlign: 'top' } });
+        graphic.push({ type: 'text', silent: true, x: x0, y: y0 + fN + 4, style: { text: cif, font: fCif, fill: esGen ? tinta : PM.col(signo(v)), align: 'left', verticalAlign: 'top' } });
+        var nota = esGen ? '' : ap && porK[k] && porK[k].a != null ? 'aporta ' + pp(porK[k].a) : 'pesa ' + peso(P[k].w), xn = x0 + ancho(cif, fCif) + 7;
+        if (nota && xn + ancho(nota, fPeso) <= x0 + cw) graphic.push({ type: 'text', silent: true, x: xn, y: y0 + fN + 4 + fC * 0.86, style: { text: nota, font: fPeso, fill: pz, align: 'left', verticalAlign: 'bottom' } });
+      });
+      return {
+        animationDuration: 450,
+        grid: grid, xAxis: xAxis, yAxis: yAxis, series: series, graphic: graphic,
+        axisPointer: { link: [{ xAxisIndex: 'all' }] },
+        tooltip: PM.tooltip(function (ps) {
+          var g = hoverG != null ? hoverG : 0, k = ORDEN[g];
+          var p = ps.filter(function (q) { return q.seriesId === 'l' + g; })[0] || ps.filter(function (q) { return /^l\d+$/.test(q.seriesId); })[0];
+          if (!p) return '';
+          var i = IV[0] + Math.round((p.value[0] - XS[IV[0]]) * 12), v = REB[k][i], gv = REB.gen[i];
+          if (v == null) return '';
+          panelPaneles(i, k);
+          var nom = k === 'gen' ? 'IPC general' : corto(P[k].n);
+          var h = PM.ttTitulo(nom + ' · ' + PM.fecha(K[i]), 'Precio, ' + PM.fecha(K[B]) + ' = 100');
+          h += PM.ttFila(TINTA, nom, PM.num(v, 1), 'linea');
+          if (k !== 'gen' && gv != null && activas.has('gen')) h += PM.ttFila(pz, 'IPC general', PM.num(gv, 1), 'punteada');
+          return h + PM.ttTotal('Frente a ' + PM.fecha(K[B]), fmt(v - 100));
+        }, chico ? {
+          axisPointer: { type: 'line' },
+          position: function (pt, params, dom, rect, size) {
+            var w = size.contentSize[0], h = size.contentSize[1], Wv = size.viewSize[0], g = geo[hoverG != null ? hoverG : 0];
+            var y = g.y0 - h - 6 >= 0 ? g.y0 - h - 6 : g.y1 + 6;
+            return [Math.min(Math.max(pt[0] - w / 2, 4), Math.max(4, Wv - w - 4)), y];
+          }
+        } : { axisPointer: { type: 'line' } })
+      };
+    }
+
+    // ── Lectura ──────────────────────────────────────────────────────────────────────────────────────────────
+    // Umbral: si lo que aportaron las 20 de las listas (subidas menos bajadas) es la mitad o más de la variación del
+    // IPC, «los extremos explican buena parte»; si no, la variación viene sobre todo del resto de la canasta.
+    var MAYORIA = 0.5;
+    function lectura() {
+      if (esAp()) return lecturaAporte();
+      var m = hor(), L = lista(), g = varGen(m, T), todos = L.sub.concat(L.baj);
+      var aS = suma(L.sub, function (x) { return x.a; }), aB = suma(L.baj, function (x) { return x.a; });
+      var wS = suma(L.sub, function (x) { return x.w; }), wB = suma(L.baj, function (x) { return x.w; });
+      var resto = g - aS - aB, nResto = TOTAL - todos.length;
+      var t = 'Las ' + L.sub.length + ' mayores subidas pesan ' + PM.pct(wS, 1) + ' de la canasta y aportaron <strong>' + pp(aS) + '</strong> a la variación ' + med().palabra + ' del IPC (' + PM.pct(g, 2, true) +
+        '); las ' + L.baj.length + ' mayores bajadas pesan ' + PM.pct(wB, 1) + ' y restaron <strong>' + pp(aB) + '</strong>. ';
+      t += Math.abs(g) > 0.005 && (aS + aB) / g >= MAYORIA
+        ? 'Entre los dos extremos explican <strong>buena parte</strong> de la variación: el resto de la canasta (' + nResto + ' productos) aportó ' + pp(resto) + '.'
+        : 'La variación viene <strong>sobre todo del resto de la canasta</strong>: los otros ' + nResto + ' productos aportaron ' + pp(resto) + '.';
+      // la que más sube no siempre es la que más mueve el índice: lo decide el peso
+      var top = L.sub[0], mx = todos.filter(function (x) { return x.a != null; }).sort(function (a, b) { return Math.abs(b.a) - Math.abs(a.a); })[0];
+      if (mx && mx.k !== top.k) t += ' <strong>' + corto(top.n) + '</strong> es lo que más sube (' + fmt(top.v) + '), pero lo que más mueve el índice es <strong>' + corto(mx.n) + '</strong> (' + pp(mx.a) + '): pesa ' + peso(mx.w) + ', contra ' + peso(top.w) + '.';
+      else if (mx) t += ' <strong>' + corto(top.n) + '</strong> es lo que más sube (' + fmt(top.v) + ') y también lo que más mueve el índice (' + pp(top.a) + '): pesa ' + peso(top.w) + '.';
+      return t;
+    }
+    // En el aporte: en llano, la diferencia entre lo que más subió y lo que más movió el índice, con los casos del
+    // mes (calculados), cuánto suman los extremos y que el aporte no explica causas.
+    function lecturaAporte() {
+      var m = hor(), L = lista(), V = LISTA[m], g = varGen(m, T), topA = L.sub[0], topV = V.sub[0];
+      var aS = suma(L.sub, function (x) { return x.a; }), aB = suma(L.baj, function (x) { return x.a; }), wS = suma(L.sub, function (x) { return x.w; });
+      var t = 'Lo que más <strong>subió</strong> no es lo mismo que lo que más <strong>movió el índice</strong>: el aporte multiplica la suba del precio por el peso del producto en la canasta. ';
+      t += topA.k === topV.k ? '<strong>' + corto(topV.n) + '</strong> es las dos cosas: subió ' + fmt(topV.pv) + ' y sumó ' + pp(topA.a) + '. '
+        : 'Lo que más subió fue <strong>' + corto(topV.n) + '</strong> (' + fmt(topV.pv) + ', aportó ' + pp(topV.a) + '); lo que más sumó, <strong>' + corto(topA.n) + '</strong> (' + pp(topA.a) + '), que subió ' + fmt(topA.pv) + ' pero pesa ' + peso(topA.w) + '. ';
+      // dos que subieron mucho menos que el primero y sumaron casi lo mismo, por su peso
+      var dosM = L.sub.filter(function (x) { return x.k !== topA.k && x.k !== topV.k && x.pv < topV.pv / 2; }).slice(0, 2);
+      if (dosM.length === 2) t += '<strong>' + corto(dosM[0].n) + '</strong> (' + fmt(dosM[0].pv) + ') y <strong>' + corto(dosM[1].n) + '</strong> (' + fmt(dosM[1].pv) + ') subieron mucho menos, pero pesan ' + peso(dosM[0].w) + ' y ' + peso(dosM[1].w) +
+        ': sumaron ' + pp(dosM[0].a) + ' y ' + pp(dosM[1].a) + '. ';
+      // y una gran suba que casi no movió el índice
+      var leve = V.sub.filter(function (x) { return x.a != null; }).sort(function (a, b) { return a.a - b.a; })[0];
+      if (leve) t += 'En cambio, <strong>' + corto(leve.n) + '</strong> subió ' + fmt(leve.pv) + ' y sumó ' + pp(leve.a) + ': pesa ' + peso(leve.w) + '. ';
+      return t + 'Los ' + L.sub.length + ' que más sumaron pesan ' + PM.pct(wS, 1) + ' de la canasta y aportaron <strong>' + pp(aS) + '</strong> de los ' + PM.num(g, 2) + NB + 'pp; los ' + L.baj.length + ' que más restaron, <strong>' + pp(aB) +
+        '</strong>. El aporte dice dónde se registró la suba, no por qué ocurrió.';
+    }
+
+    function panelActual() {
+      if (estado.vista === 'ranking') panel(estado.fila && DATA.some(function (x) { return x.k === estado.fila; }) ? estado.fila : lista().sub[0].k);
+      else panelPaneles(estado.pi != null ? estado.pi : T, estado.pk);
+    }
+
+    // Vista «Ranking»: el general, el producto bajo el cursor y la conclusión
+    function panel(k) {
+      if (!k || estado.vista !== 'ranking') return;
+      var L = lista(), x = L.sub.concat(L.baj).filter(function (q) { return q.k === k; })[0];
+      if (!x) return;
+      estado.fila = k;
+      var m = hor(), ap = esAp(), g = varGen(m, T), b = base(m), otra = m === 'ia' ? x.mes : x.ia;
+      var ine = x.n !== corto(x.n) ? '<span style="display:block">' + x.n + '.</span>' : '', desc, gen;
+      if (ap) {
+        desc = ine + 'Puesto <strong>' + x.r + ' de ' + (x.g === 'sub' ? L.sub.length + '</strong> entre lo que más sumó' : L.baj.length + '</strong> entre lo que más restó') + '. ' +
+          (x.pv >= 0 ? 'Subió ' : 'Bajó ') + '<strong>' + PM.pct(Math.abs(x.pv), 1) + '</strong> y pesa <strong>' + peso(x.w) + '</strong> de la canasta: por eso ' + (x.v >= 0 ? 'sumó ' : 'restó ') + pp(x.v) +
+          ' a la variación ' + med().palabra + ' del IPC.';
+        gen = 'Variación ' + med().palabra + ', frente a ' + PM.fecha(K[b]) + ': la suma de los aportes de los ' + PM.num(TOTAL, 0) + ' productos de la canasta.';
+      } else {
+        desc = ine + 'Puesto <strong>' + x.r + ' de ' + (x.g === 'sub' ? L.sub.length + '</strong> entre las mayores subidas' : L.baj.length + '</strong> entre las mayores bajadas') + '. ' +
+          'Pesa <strong>' + peso(x.w) + '</strong> de la canasta' + (x.a != null ? ' y ' + (x.a >= 0 ? 'aportó' : 'restó') + ' <strong>' + pp(x.a) + '</strong> a la variación ' + med().palabra + ' del IPC.' : '.') +
+          ' ' + (m === 'ia' ? 'En el último mes: ' : 'En doce meses: ') + fmt(otra) + '.';
+        gen = 'Variación ' + med().palabra + ', frente a ' + PM.fecha(K[b]) + ': el promedio de los ' + PM.num(TOTAL, 0) + ' productos de la canasta, cada uno con su peso.';
+      }
+      document.getElementById('panel-fecha').textContent = PM.fecha(PR.fecha);
+      document.getElementById('panel').innerHTML =
+        PM.pb(TINTA, 'IPC general', PM.pct(g, 2, true), gen) +
+        PM.pb(signo(x.v), corto(x.n), ap ? pp(x.v) : fmt(x.v), desc) +
+        PM.ctx(lectura());
+    }
+    // Vista «Paneles»: los once (el general y los diez productos) en el mes bajo el cursor, frente a la base
+    function panelPaneles(i, k) {
+      if (i == null || estado.vista !== 'paneles') return;
+      datosPaneles();
+      if (REB.gen[i] == null) return;
+      estado.pi = i; estado.pk = k && k !== 'gen' ? k : null;
+      var fil = ORDEN.slice(1).map(function (s) { return { k: s, v: REB[s][i] == null ? null : REB[s][i] - 100 }; }).filter(function (x) { return x.v != null; }).sort(function (a, b) { return b.v - a.v; });
+      var filas = [{ k: 'gen', v: REB.gen[i] - 100 }].concat(fil);
+      var tope = Math.max.apply(null, filas.map(function (x) { return Math.abs(x.v); })) || 1;
+      var html = '<div class="rk"><div class="rk-t">Precio en ' + PM.fecha(K[i]) + ' frente a ' + PM.fecha(K[B]) + '</div>' + filas.map(function (x) {
+        var w = Math.abs(x.v) / tope * 50, col = x.k === 'gen' ? PM.col(TINTA) : PM.col(signo(x.v));
+        var barra = '<i style="background:' + col + ';' + (x.v >= 0 ? 'left:50%' : 'left:' + (50 - w) + '%') + ';width:' + w + '%"></i>';
+        var n = x.k === 'gen' ? 'IPC general' : corto(P[x.k].n);
+        return '<div class="rk-f' + (x.k === 'gen' ? ' pib' : '') + (x.k === estado.pk ? ' sel' : '') + '"><span class="rk-n" title="' + (x.k === 'gen' ? 'IPC general' : P[x.k].n) + '">' + n +
+          '</span><span class="rk-b">' + barra + '</span><span class="rk-v" style="color:' + (x.k === 'gen' ? PM.col(TINTA) : PM.tx(signo(x.v))) + '">' + fmt(x.v) + '</span></div>';
+      }).join('') + '</div>';
+      var txt;
+      if (i === T) txt = lectura();
+      else {
+        var sube = estado.grupo === 'sub', n = fil.filter(function (x) { return sube ? x.v > 0 : x.v < 0; }).length;
+        var cuales = esAp() ? 'los ' + fil.length + ' que más ' + (sube ? 'sumaron' : 'restaron') + ' a la inflación ' + med().palabra : 'las ' + fil.length + ' mayores ' + (sube ? 'subidas' : 'bajadas') + ' ' + med().palabra + 'es';
+        txt = 'En <strong>' + PM.fecha(K[i]) + '</strong>, ' + n + ' de estos ' + fil.length + ' productos costaban ' + (sube ? 'más' : 'menos') + ' que en ' + PM.fecha(K[B]) +
+          '; el IPC general estaba ' + fmt(REB.gen[i] - 100) + ' frente a ese mes. En ' + PM.fecha(PR.fecha) + ' son ' + cuales + '.';
+      }
+      document.getElementById('panel-fecha').textContent = PM.fecha(K[i]);
+      document.getElementById('panel').innerHTML = html + PM.ctx(txt);
+    }
+
+    // Imagen: el ranking no tiene eje de tiempo y los paneles llevan su nombre: la leyenda se declara
+    PM.leyendaImagen = function () {
+      var gris = PM.dk() ? '#8A9699' : '#5C6B70', ap = esAp();
+      if (estado.vista === 'paneles') return [{ name: 'Más caro que en ' + PM.fecha(K[B]), color: PM.tinte(false), forma: 'area' }, { name: 'Más barato', color: PM.tinte(true), forma: 'area' }]
+        .concat(activas.has('gen') ? [{ name: 'IPC general', color: gris, forma: 'punteada' }] : []);
+      return [{ name: ap ? 'Suma' : 'Sube', color: PM.col(SUBE), forma: 'area' }, { name: ap ? 'Resta' : 'Baja', color: PM.col(BAJA), forma: 'area' }, { name: 'Peso en la canasta', color: PM.dk() ? '#6E7A7D' : '#8A9699', forma: 'area' }]
+        .concat(ap ? [] : [{ name: 'IPC general: ' + fmt(varGen(hor(), T)), color: gris, forma: 'punteada' }]);
+    };
+    // Datos: la tabla se declara (el eje no es de tiempo en el ranking; numérico en los paneles)
+    PM.tablaDatos = function () {
+      if (estado.vista === 'paneles') return { cols: ['Mes (precio, ' + K[B] + ' = 100)'].concat(ORDEN.map(function (k) { return k === 'gen' ? 'IPC general' : P[k].n; })),
+        filas: IV.map(function (i) { return [K[i]].concat(ORDEN.map(function (k) { return REB[k][i] == null ? null : +REB[k][i].toFixed(4); })); }) };
+      var L = lista(), R = ROT(), fila = function (x, grupo) { return [grupo, x.r, x.n, PR.fecha, x.w, x.ia, x.mes, x.aia, x.ames]; };
+      var tot = function (m) { return LISTA['ap' + m] ? LISTA['ap' + m].total : varGen(m, T); };
+      return { cols: ['Grupo', 'Puesto', 'Producto', 'Mes', 'Peso en la canasta (%)', 'Variación interanual (%)', 'Variación mensual (%)', 'Aporte a la inflación interanual (pp)', 'Aporte a la inflación mensual (pp)'],
+        filas: [['IPC general', null, 'Índice general (' + PM.num(TOTAL, 0) + ' productos)', PR.fecha, 100, varGen('ia', T), varGen('mes', T), tot('ia'), tot('mes')]]
+          .concat(L.sub.map(function (x) { return fila(x, R.sub); }))
+          .concat(L.baj.map(function (x) { return fila(x, R.baj); })) };
+    };
+
+    function preguntas() {
+      var L = LISTA.ia, A = LISTA.apia, todas = [L.sub, L.baj, LISTA.mes.sub, LISTA.mes.baj].concat(A ? [A.sub, A.baj, LISTA.apmes.sub, LISTA.apmes.baj] : []);
+      var todos = [].concat.apply([], todas).filter(function (x) { return x.w != null; });
+      var pesado = todos.slice().sort(function (a, b) { return b.w - a.w; })[0], liviano = todos.slice().sort(function (a, b) { return a.w - b.w; })[0];
+      // el contraste: una suba moderada de mucho peso (de lo que más sumó) frente a una suba grande de poco peso
+      var grande = (A ? A.sub : L.sub).filter(function (x) { return x.a != null && x.ia < L.sub[0].ia / 2; }).sort(function (a, b) { return b.w - a.w; })[0]
+        || L.sub.filter(function (x) { return x.a != null; }).sort(function (a, b) { return b.a - a.a; })[0];
+      var chico = L.sub.filter(function (x) { return x.a != null && x.k !== grande.k; }).sort(function (a, b) { return a.w - b.w; })[0];
+      var wS = suma(L.sub, function (x) { return x.w; });
+      // el vaivén: entre los productos con serie, el que más sube y baja en tres años (el recorrido mes a mes más
+      // largo, no la mayor suba: un precio que sólo sube no es estacional), y cuánto más cuesta en su mes más caro
+      var p = PM.periodo(PR.fecha), ini = POS[(p.a - 3) + '-' + dos(p.m + 1)] || 0, vaiven = null;
+      Object.keys(H).forEach(function (n) {
+        var v = H[n].slice(ini, T + 1).filter(function (x) { return x != null; });
+        if (v.length < 12) return;
+        var rec = 0; for (var j = 1; j < v.length; j++) rec += Math.abs(Math.log(v[j] / v[j - 1]));
+        if (!vaiven || rec > vaiven.rec) vaiven = { n: n, rec: rec, r: Math.max.apply(null, v) / Math.min.apply(null, v) };
+      });
+      return [
+        ['¿Qué es la canasta del IPC?', '<p>Los <strong>' + PM.num(TOTAL, 0) + ' productos</strong> —bienes y servicios— cuyos precios el INE sigue cada mes en ' + META.cobertura + ' para calcular el Índice de Precios al Consumidor. Cada uno entra con su <strong>peso</strong>: la parte del gasto de los hogares que se le va, según la canasta de base ' + META.base + '.</p>' +
+          '<p>Las cifras del INE son preliminares y pueden revisarse.</p>'],
+        ['¿Qué dice el peso de un producto?', '<p>Cuánto cuenta en el IPC. Un peso de ' + peso(pesado.w) + ' quiere decir que, en la canasta del INE, de cada Bs 100 que gastan los hogares, Bs ' + PM.num(pesado.w, 2) + ' van a ese producto. Los pesos de los ' + PM.num(TOTAL, 0) + ' productos suman 100%.</p>' +
+          '<p>En estas listas, lo que más pesa es <strong>' + corto(pesado.n) + '</strong> (' + peso(pesado.w) + ') y lo que menos, <strong>' + corto(liviano.n) + '</strong> (' + peso(liviano.w) + ').</p>'],
+        ['¿Por qué algo que sube mucho puede mover poco la inflación?', '<p>Porque al IPC lo mueve la suba <strong>por</strong> el peso. El <strong>aporte</strong> de un producto es su peso por cuánto subió su índice, dividido por el nivel del IPC general al comienzo del período; los aportes de toda la canasta suman la inflación.</p>' +
+          (grande && chico ? '<p>En los doce meses a ' + PM.fecha(PR.fecha) + ', <strong>' + corto(grande.n) + '</strong> subió ' + fmt(grande.ia) + ', pero pesa ' + peso(grande.w) + ' y aportó ' + pp(grande.aia) + '; <strong>' + corto(chico.n) + '</strong> subió ' + fmt(chico.ia) + ', pero pesa ' + peso(chico.w) + ' y aportó ' + pp(chico.aia) + '. Las ' + L.sub.length + ' mayores subidas pesan juntas ' + PM.pct(wS, 1) + ' de la canasta.</p>' : '')],
+        ['¿Que un producto suba es inflación?', '<p>No necesariamente. Que un precio suba frente a otros es un cambio de <strong>precios relativos</strong>: mientras unos productos suben, otros bajan. La <strong>inflación</strong> es la suba del nivel general, el promedio de toda la canasta con sus pesos.</p>' +
+          '<p>Una inflación alta y persistente no viene de un producto: viene de que el dinero pierde valor (ver «¿Por qué suben los precios?» en el gráfico de inflación).</p>'],
+        ['El aporte no explica causas', '<p>El aporte reparte la variación del IPC entre los productos según su peso: es la aritmética de un <strong>promedio ponderado</strong> y se cumple siempre. Dice dónde se registró la suba, no por qué ocurrió: un mismo hecho —un combustible más caro, una moneda que pierde valor— mueve a la vez muchos precios. Para explicar hay que identificar qué cambió y seguir la cadena preguntando «¿y después qué?». Lo explica Brian Albrecht en <a href="https://www.economicforces.xyz/p/never-reason-from-an-accounting-identity-c4f" target="_blank" rel="noopener">«Never Reason from an Accounting Identity»</a> (Economic Forces, 2026).</p>'],
+        ['¿Por qué cambian los productos de la lista?', '<p>Son los ' + N + ' de mayor subida y los ' + N + ' de mayor bajada del último mes (o, en el aporte, los ' + N + ' que más sumaron y los que más restaron): cambian cada mes. Muchos precios, sobre todo de alimentos frescos, suben y bajan con la estación' +
+          (vaiven ? ': en los últimos tres años, <strong>' + corto(vaiven.n) + '</strong> llegó a costar ' + PM.pct((vaiven.r - 1) * 100, 0) + ' más en su mes más caro que en el más barato' : '') + '. Por eso la variación <strong>mensual</strong> de un producto dice poco de su tendencia; la <strong>interanual</strong> compara el mismo mes de dos años.</p>']
+      ];
+    }
+  })();
+  </script>
+</body>
+</html>

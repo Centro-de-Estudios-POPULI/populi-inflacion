@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light" style="--acento:#C71E1D">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inflación en cada ciudad · Populi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="comun/monitor.css" />
+  <style>
+    /* Ranking del mes en el panel de lectura: barras desde la base (0, o 100 en el nivel) y la raya de Bolivia */
+    .rk { margin: 4px 0 10px; }
+    .rk-t { font-size: .58rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 5px; }
+    .rk-f { display: grid; grid-template-columns: minmax(0, 1fr) 38% 4.3rem; align-items: center; gap: 8px; padding: 2px 4px; }
+    .rk-f.nac { border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 3px; }
+    .rk-f.sel { background: var(--suave); box-shadow: inset 2px 0 0 var(--acento); }
+    .rk-n { font-size: .68rem; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rk-f.nac .rk-n { font-weight: 700; color: var(--tinta); }
+    .rk-b { position: relative; height: 9px; }
+    .rk-b::before { content: ''; position: absolute; left: var(--b0, 0%); top: -3px; bottom: -3px; width: 1px; background: var(--tenue); }
+    .rk-b i { position: absolute; top: 0; bottom: 0; }
+    .rk-b b { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 1px dashed var(--pizarra); opacity: .85; }
+    .rk-v { font: 600 .68rem/1.3 'JetBrains Mono', monospace; text-align: right; white-space: nowrap; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <script src="comun/monitor.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="sec-hd">
+      <div class="sec-title"><span class="accent-bar"></span>Inflación en cada ciudad</div>
+      <div class="sec-sub" id="sub">Inflación de cada ciudad capital frente a la de Bolivia</div>
+    </div>
+
+    <div class="hz-bar">
+      <div class="hz-item"><span class="hz-lbl">Medida</span><div class="hz-grp" id="b-medida"></div></div>
+      <div class="hz-item"><span class="hz-lbl">Escala</span><div class="hz-grp" id="b-escala"></div></div>
+    </div>
+
+    <div class="kpi-grid" id="kpis"></div>
+
+    <div class="main-grid">
+      <div class="chart-card">
+        <div class="chart-ctrl"><div class="tog-grp" id="pastillas"></div></div>
+        <div class="grafico" id="chart"><div class="loading"><div class="spinner"></div><span>Cargando la inflación de las ciudades…</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-hd"><span class="panel-hd-t">Lectura del indicador</span><span class="panel-hd-d" id="panel-fecha"></span></div>
+        <div class="panel-body" id="panel"></div>
+      </div>
+    </div>
+
+    <div class="edu-grid" id="preguntas"></div>
+    <div class="source"><span class="source-txt" id="fuente"></span></div>
+  </div>
+
+  <script>
+  (function () {
+    var C = PM.C, NB = ' ', NAC = 'BOLIVIA';
+    // El lenguaje es el de los paneles de actividad del PIB (lámina del deck RIPoM): la línea en TINTA con puntos
+    // huecos, la cifra grande bajo el nombre, el relleno sólido con los tintes oficiales. Semántica de PRECIOS:
+    // con «Comparar con Bolivia» encendido, la referencia de cada ciudad es la serie NACIONAL (gris punteada) y
+    // el relleno va entre las dos: rosado donde la ciudad está sobre Bolivia (más inflación que el país),
+    // turquesa debajo. Apagado, la referencia es el cero (o el 100 del nivel): rosado, los precios suben.
+    var ARRIBA = { claro: '#C71E1D', oscuro: '#E8706B' }, ABAJO = { claro: '#0A9396', oscuro: '#94D2BD' };
+    var MED = {
+      interanual: { k: 'var_interanual', nombre: 'Interanual', ref: 0, pct: true, cierre: true },
+      mensual: { k: 'var_mensual', nombre: 'Mensual', ref: 0, pct: true, cierre: false },
+      nivel: { k: 'indice', nombre: 'Nivel del índice', ref: 100, pct: false, cierre: false }
+    };
+    var estado = { medida: 'interanual', escala: 'propia', idx: null, k: null };
+    // «Comparar con Bolivia» es UNA pastilla: el molde no deja apagar la última encendida, así que el conjunto
+    // lleva una clave fija sin pastilla (como en los paneles del PIB)
+    var activas = new Set(['nac', '_fija']);
+    PM.imagen = { proporcion: 4 / 5 };   // diez paneles en cuatro filas: la imagen vertical les da alto
+    var D, META, V = {}, K = [], X = [], CIUD = [], DEP = {}, S = {}, ORDEN = [], I = [], PESO = null, grafico, geo = [], hoverG = null;
+
+    var pct2 = function (v) { return PM.pct(v, 2, true); };   // el INE publica la inflación con dos decimales
+    var sinTilde = function (s) { return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); };
+    var TILDES = { potosi: 'Potosí' };
+    var nomDep = function (d) { return TILDES[sinTilde(d)] || d; };
+    var mover = function (f, n) {
+      var a = +f.slice(0, 4), m = +f.slice(5, 7) - 1 + n;
+      a += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
+      return a + '-' + (m < 9 ? '0' : '') + (m + 1);
+    };
+    // nombres de la cabeza de cada panel, del más largo al más corto: va el primero que entra en el ancho
+    var MEDIO = { 'Región Metropolitana Kanata': 'Kanata (Cochabamba)' };
+    function nombres(c) {
+      if (c === NAC) return ['Bolivia'];
+      var d = nomDep(DEP[c]), out = [c];
+      if (MEDIO[c]) out.push(MEDIO[c], d);                                   // «Región Metropolitana Kanata» → … → «Cochabamba»
+      else if (sinTilde(c) !== sinTilde(d) && sinTilde(c).indexOf(sinTilde(d)) >= 0) out.push(d);   // «Conurbación La Paz» → «La Paz»
+      return out;
+    }
+    var corto = function (c) { var n = nombres(c); return n[n.length - 1]; };
+
+    PM.cargar(['ipc_ciudades.json', 'metadata.json', 'ipc_pesos.json']).then(function (r) {
+      OFICIAL = r[2] && r[2].ciudades || null;
+      D = r[0]; META = r[1];
+      CIUD = Object.keys(D).filter(function (c) { return c !== NAC; });
+      CIUD.forEach(function (c) { DEP[c] = D[c].departamento; });
+      Object.keys(D).forEach(function (c) {
+        V[c] = {};
+        ['indice', 'var_mensual', 'var_acumulada', 'var_interanual'].forEach(function (m) {
+          var o = V[c][m] = {};
+          (D[c][m] || []).forEach(function (p) { if (p.valor != null) o[p.fecha] = p.valor; });
+        });
+      });
+      K = D[NAC].indice.map(function (p) { return p.fecha; });
+      // cada mes en el eje X como año decimal: «2026-09» → 2026,667 (permite el cruce interpolado)
+      X = K.map(function (f) { var p = PM.periodo(f); return p.a + p.m / 12; });
+      PESO = pesos();
+      estado.idx = K.length - 1;
+      PM.botonera(document.getElementById('b-medida'), [['interanual', 'Interanual'], ['mensual', 'Mensual'], ['nivel', 'Nivel']],
+        estado.medida, function (v) { estado.medida = v; todo(); });
+      PM.botonera(document.getElementById('b-escala'), [['propia', 'Por panel'], ['comun', 'Común']],
+        estado.escala, function (v) { estado.escala = v; grafico.redibujar(); });
+      PM.pastillas(document.getElementById('pastillas'), [{ k: 'nac', nombre: 'Comparar con Bolivia', color: { claro: C.pizarra, oscuro: C.gris }, forma: 'punteada' }],
+        activas, function () { textos(); cifras(); grafico.redibujar(); panel(estado.idx, estado.k); });
+      medidas(); textos(); cifras();
+      var el = document.getElementById('chart');
+      el.innerHTML = '';
+      grafico = PM.montar(el, opciones);
+      // ¿sobre qué panel está el cursor? Se mide en la fase de captura, antes de que ECharts arme el tooltip
+      var donde = function (e) {
+        var b = el.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
+        hoverG = null;
+        geo.forEach(function (g, j) { if (x >= g.x0 && x <= g.x1 && y >= g.y0 && y <= g.y1) hoverG = j; });
+      };
+      el.addEventListener('pointermove', donde, true);
+      el.addEventListener('pointerdown', donde, true);
+      panel(estado.idx, null);
+      PM.alCambiarTema(function () { cifras(); panel(estado.idx, estado.k); });
+      PM.preguntas(document.getElementById('preguntas'), preguntas());
+      document.getElementById('fuente').innerHTML = 'Fuente: <a href="' + META.url_ciudades + '" target="_blank" rel="noopener">INE — Índice de Precios al Consumidor por ciudades capitales y conurbaciones (base ' + META.base + ' = 100)</a> · Elaboración: Centro de Estudios POPULI · Datos al: ' + PM.fecha(K[K.length - 1]);
+    }).catch(function (e) { console.error(e); PM.error(document.getElementById('chart')); });
+
+    function todo() { medidas(); textos(); cifras(); grafico.redibujar(); panel(estado.idx, estado.k); }
+
+    var med = function () { return MED[estado.medida]; };
+    var compara = function () { return activas.has('nac'); };
+    function fmt(v) { return v == null ? '—' : med().pct ? pct2(v) : PM.num(v, 1); }
+    function fmtDif(d) { return med().pct ? PM.pp(d, 2) : PM.signo(d, 1) + NB + 'pts'; }
+
+    // Las tres medidas, alineadas a K por FECHA
+    function medidas() {
+      S = {};
+      [NAC].concat(CIUD).forEach(function (c) { var s = V[c][med().k]; S[c] = K.map(function (f) { return s[f] != null ? s[f] : null; }); });
+      var u = K.length - 1;
+      // el orden de los paneles: Bolivia primero (el ancla) y las ciudades por su último dato, de mayor a menor
+      ORDEN = [NAC].concat(CIUD.slice().sort(function (a, b) { return S[b][u] - S[a][u]; }));
+    }
+    var primero = function () { var i = 0; while (i < K.length && S[NAC][i] == null) i++; return i; };
+    // referencia del relleno y del color de la cifra de cada panel en el mes i
+    function refDe(c, i) { return compara() && c !== NAC ? S[NAC][i] : med().ref; }
+    function lado(c, i) { var v = S[c][i], r = refDe(c, i); return v == null || r == null ? C.tinta : v > r ? ARRIBA : v < r ? ABAJO : C.tinta; }
+
+    function textos() {
+      var m = estado.medida, cmp = compara(), b = META.base;
+      var que = {
+        interanual: 'Inflación a 12 meses de cada ciudad (%)',
+        mensual: 'Variación de los precios de cada mes frente al anterior, en cada ciudad (%)',
+        nivel: 'Índice de precios de cada ciudad (' + b + ' = 100)'
+      }[m];
+      var como = cmp
+        ? (m === 'nivel' ? ', con Bolivia en gris punteado. Rosado: los precios subieron más que en el país desde ' + b + '; turquesa: menos.'
+          : ', con Bolivia en gris punteado. Rosado: la ciudad está sobre Bolivia (más inflación que el país); turquesa: debajo.')
+        : (m === 'nivel' ? '. Rosado: precios sobre los de ' + b + '; turquesa: debajo.' : '. Rosado: los precios suben; turquesa: bajan.');
+      document.getElementById('sub').textContent = que + como + ' Ordenadas por el último dato, de mayor a menor.';
+    }
+
+    function cifras() {
+      var u = K.length - 1, f = K[u], nac = S[NAC][u], m = estado.medida;
+      var fil = CIUD.map(function (c) { return { c: c, v: S[c][u] }; }).filter(function (x) { return x.v != null; }).sort(function (a, b) { return b.v - a.v; });
+      var alto = fil[0], bajo = fil[fil.length - 1], n = fil.length;
+      var rango = []; for (var i = Math.max(primero(), u - 23); i <= u; i++) rango.push(i);
+      var serie = function (c) { return rango.map(function (i) { return S[c][i]; }); };
+      var sobre = function (i) { return CIUD.filter(function (c) { return S[c][i] != null && S[NAC][i] != null && S[c][i] > S[NAC][i]; }).length; };
+      var hace = K.indexOf(mover(f, -12));
+      var d = u > 0 && S[NAC][u - 1] != null ? nac - S[NAC][u - 1] : null;
+      var col = function (v) { return v > nac ? C.rojo : C.turquesa; };
+      document.getElementById('kpis').innerHTML =
+        PM.kpi({ color: nac > med().ref ? C.rojo : C.turquesa, rotulo: 'Bolivia · ' + PM.fecha(f), valor: fmt(nac),
+          delta: m === 'nivel' ? PM.pct(nac - 100, 1, true) + ' desde ' + META.base
+            : d == null ? m : PM.flecha(d, 0.005) + ' ' + PM.num(Math.abs(d), 2) + NB + 'pp frente a ' + PM.MES[+mover(f, -1).slice(5, 7) - 1],
+          tono: m === 'nivel' ? (nac > 100 ? 'malo' : 'bueno') : d == null || Math.abs(d) < 0.005 ? 'neutro' : d > 0 ? 'malo' : 'bueno', serie: serie(NAC) }) +
+        PM.kpi({ color: col(alto.v), rotulo: (m === 'nivel' ? 'Más alto · ' : 'Más alta · ') + corto(alto.c), valor: fmt(alto.v), delta: fmtDif(alto.v - nac) + ' frente a Bolivia',
+          tono: alto.v > nac ? 'malo' : 'bueno', serie: serie(alto.c) }) +
+        PM.kpi({ color: col(bajo.v), rotulo: (m === 'nivel' ? 'Más bajo · ' : 'Más baja · ') + corto(bajo.c), valor: fmt(bajo.v), delta: fmtDif(bajo.v - nac) + ' frente a Bolivia',
+          tono: bajo.v > nac ? 'malo' : 'bueno', serie: serie(bajo.c) }) +
+        PM.kpi({ color: C.rojo, rotulo: 'Ciudades sobre Bolivia', valor: sobre(u) + ' de ' + n,
+          delta: hace >= 0 && S[NAC][hace] != null ? 'hace 12 meses: ' + sobre(hace) + ' de ' + n : PM.fecha(f), tono: 'neutro',
+          serie: rango.map(sobre) });
+    }
+
+    // Escala: el eje abraza el dato (con poco aire) y sólo los múltiplos del paso llevan rótulo. Redondear los
+    // extremos al paso, como en el deck, acá dejaba media altura vacía: la interanual va de −2% a 30% y el
+    // paso redondo de 20 abría el eje de −20 a 40.
+    function escala(vals, base, aire, divs) {
+      var v = vals.filter(function (x) { return x != null; });
+      var lo = Math.min.apply(null, v.concat([base])), hi = Math.max.apply(null, v.concat([base])), r = (hi - lo) || 1;
+      lo -= r * aire; hi += r * aire;
+      // el paso redondo más chico que deja a lo sumo `divs` rótulos (múltiplos del paso dentro del eje)
+      var e = Math.pow(10, Math.floor(Math.log10((hi - lo) / divs)) - 1), paso = null;
+      for (var k = 0; k < 4 && paso == null; k++, e *= 10) [1, 2, 2.5, 5].forEach(function (m) {
+        var p = m * e, n = Math.floor(hi / p + 1e-9) - Math.ceil(lo / p - 1e-9) + 1;
+        if (paso == null && n <= divs) paso = p;
+      });
+      return { lo: lo, hi: hi, paso: paso || (hi - lo) };
+    }
+    var multiplo = function (v, paso) { return Math.abs(v / paso - Math.round(v / paso)) < 1e-6; };
+    // Tramos del relleno entre la línea y su referencia (otra serie o una constante), cortados por el signo
+    // con el cruce interpolado: cada tramo es UN polígono (sin costuras entre meses)
+    function tramos(pts, refs) {
+      var aug = [];
+      for (var i = 0; i < pts.length; i++) {
+        aug.push([pts[i][0], pts[i][1], refs[i]]);
+        if (i < pts.length - 1) {
+          var d0 = pts[i][1] - refs[i], d1 = pts[i + 1][1] - refs[i + 1];
+          if (d0 * d1 < 0) {
+            var t = d0 / (d0 - d1), y = pts[i][1] + t * (pts[i + 1][1] - pts[i][1]);
+            aug.push([pts[i][0] + t * (pts[i + 1][0] - pts[i][0]), y, y]);
+          }
+        }
+      }
+      var out = [], cur = null;
+      aug.forEach(function (p) {
+        var s = p[1] > p[2] ? 1 : p[1] < p[2] ? -1 : 0;
+        if (cur && (s === 0 || s === cur.s || cur.s === 0)) { cur.p.push(p); if (cur.s === 0) cur.s = s; if (s === 0) { out.push(cur); cur = { s: 0, p: [p] }; } return; }
+        if (cur) out.push(cur);
+        cur = { s: s, p: [p] };
+      });
+      if (cur) out.push(cur);
+      return out.filter(function (t) { return t.s !== 0 && t.p.length > 1; });
+    }
+    var medidor;
+    function ancho(t, fuente) { medidor = medidor || document.createElement('canvas').getContext('2d'); medidor.font = fuente; return medidor.measureText(t).width; }
+
+    function opciones() {
+      var el = document.getElementById('chart'), ch = echarts.getInstanceByDom(el);
+      // durante la descarga el molde dibuja fuera de pantalla con un tamaño fijo: se usa ESE tamaño (ver PIB)
+      var exp = el.style.left === '-40000px', chico = PM.pequeno(), dk = PM.dk(), m = med(), cmp = compara();
+      // Columnas por el ancho REAL del lienzo: tres en PC (con el panel de lectura al costado, ~660 px) y en la
+      // imagen; dos en el teléfono. Con tres, Bolivia va arriba a lo ancho y las nueve ciudades en 3 × 3 (diez
+      // paneles en tres columnas dejaban dos huecos); con dos, Bolivia es el primero de diez.
+      var W = el.clientWidth, cols = exp || W >= 470 ? 3 : 2, ancha = cols === 3;
+      var filas = ancha ? 1 + Math.ceil(CIUD.length / 3) : Math.ceil(ORDEN.length / 2);
+      var fN = chico ? 11 : 11.5, fC = chico ? 16 : 18, CAB = Math.round(fN + 4 + fC + 15);
+      var EJE = 18, SEPY = chico ? 14 : 16, SEPX = chico ? 14 : 18, izq = chico ? 10 : 2, der = chico ? 12 : 8, alto;
+      if (exp) alto = Math.floor((el.clientHeight - filas * (CAB + EJE) - (filas - 1) * SEPY) / filas);
+      else {
+        // ⛔ ECharts no agranda el lienzo si sólo cambia el alto del div: se fija el alto y se llama resize()
+        alto = cols === 2 ? 92 : 108;
+        var H = filas * (CAB + alto + EJE) + (filas - 1) * SEPY;
+        if (Math.abs(el.clientHeight - H) > 1) el.style.height = H + 'px';
+        if (ch && Math.abs(ch.getHeight() - el.clientHeight) > 1) ch.resize();
+      }
+      var p0 = primero(), u = K.length - 1;
+      I = []; for (var i = p0; i <= u; i++) I.push(i);
+      var pts = {};
+      ORDEN.forEach(function (c) { pts[c] = I.filter(function (i) { return S[c][i] != null; }).map(function (i) { return [X[i], S[c][i], i]; }); });
+      var todos = []; ORDEN.forEach(function (c) { pts[c].forEach(function (p) { todos.push(p[1]); }); });
+      var comun = escala(todos, m.ref, 0.04, 4);
+      var esc = ORDEN.map(function (c) {
+        if (estado.escala === 'comun') return comun;
+        var v = pts[c].map(function (p) { return p[1]; });
+        if (cmp && c !== NAC) v = v.concat(pts[NAC].map(function (p) { return p[1]; }));
+        return escala(v, m.ref, 0.06, 4);
+      });
+      // margen del eje Y: el número más ancho de TODOS los paneles, alineados a la derecha, pegados al dibujo
+      var fA = chico ? 9.5 : 10, fuenteEje = '500 ' + fA + 'px ' + PM.mono(), MARG = 6, gut = 0;
+      esc.forEach(function (s) { for (var v = Math.ceil(s.lo / s.paso) * s.paso; v <= s.hi; v += s.paso) gut = Math.max(gut, ancho(PM.tick(v), fuenteEje)); });
+      gut = Math.ceil(gut) + MARG;
+      var cw = (W - izq - der - (cols - 1) * SEPX) / cols;
+      var x0a = X[p0], x1a = X[u], span = Math.floor(x1a) - Math.ceil(x0a);
+      var pz = dk ? '#8A9699' : '#5C6B70', tinta = PM.col(C.tinta), card = PM.var('--card') || '#ffffff';
+      var grilla = dk ? '#2A3A50' : '#E2DDD3', lineaEje = dk ? '#3A4549' : '#C9CDCE';
+      var fNom = '700 ' + fN + 'px ' + PM.inter(), fCif = '700 ' + fC + 'px ' + PM.mono();
+      geo = [];
+      var grid = [], xAxis = [], yAxis = [], series = [], graphic = [];
+      ORDEN.forEach(function (c, g) {
+        var x0, y0, wP;
+        if (ancha) {
+          if (g === 0) { x0 = izq; y0 = 0; wP = W - izq - der; }
+          else { var r = 1 + Math.floor((g - 1) / 3), k = (g - 1) % 3; x0 = izq + k * (cw + SEPX); y0 = r * (CAB + alto + EJE + SEPY); wP = cw; }
+        } else { x0 = izq + (g % 2) * (cw + SEPX); y0 = Math.floor(g / 2) * (CAB + alto + EJE + SEPY); wP = cw; }
+        var plotW = wP - gut;
+        geo.push({ c: c, x0: x0, x1: x0 + wP, y0: y0, y1: y0 + CAB + alto + EJE });
+        grid.push({ left: Math.round(x0 + gut), top: y0 + CAB, width: Math.floor(plotW), height: alto, containLabel: false });
+        // años del eje: el paso que deja un rótulo cada ~38 px del ancho real del panel
+        var caben = Math.max(2, Math.floor(plotW / 38));
+        var paso = [1, 2, 3, 4, 5].filter(function (t) { return Math.floor(span / t) + 1 <= caben; })[0] || 5;
+        xAxis.push({ type: 'value', gridIndex: g, min: x0a, max: x1a, interval: 0.25,
+          axisLine: { onZero: false, lineStyle: { color: lineaEje } }, axisTick: { show: false }, splitLine: { show: false },
+          axisLabel: { fontFamily: PM.mono(), fontSize: fA, fontWeight: 600, color: dk ? 'rgba(226,232,240,.75)' : 'rgba(0,18,25,.7)', margin: 6,
+            showMinLabel: false, showMaxLabel: false,
+            formatter: function (v) { var y = Math.round(v); return Math.abs(v - y) < 1e-6 && y % paso === 0 && v > x0a + 0.2 ? String(y) : ''; } },
+          axisPointer: { show: true, type: 'line', snap: true, label: { show: false }, lineStyle: { color: dk ? 'rgba(226,232,240,.32)' : 'rgba(0,18,25,.22)', width: 1 } } });
+        var s = esc[g];
+        // minInterval = maxInterval = paso: con «interval» ECharts arranca las marcas en el mínimo (no en los múltiplos)
+        yAxis.push({ type: 'value', gridIndex: g, min: s.lo, max: s.hi, minInterval: s.paso, maxInterval: s.paso,
+          axisLine: { show: false }, axisTick: { show: false },
+          splitLine: { lineStyle: { color: grilla, type: [3, 3], opacity: dk ? 0.7 : 1 } },
+          axisLabel: { color: pz, fontFamily: PM.mono(), fontSize: fA, fontWeight: 500, margin: MARG, align: 'right', formatter: function (v) { return multiplo(v, s.paso) ? PM.tick(v) : ''; } } });
+        var dat = pts[c], conNac = cmp && c !== NAC;
+        // la referencia del relleno: Bolivia (mismo mes) o la constante
+        var refs = dat.map(function (p) { return conNac ? S[NAC][p[2]] : m.ref; });
+        var ok = refs.every(function (v) { return v != null; });
+        var T = ok ? tramos(dat, refs) : [];
+        series.push({ type: 'custom', id: 'r' + g, xAxisIndex: g, yAxisIndex: g, silent: true, z: 1, clip: true, tooltip: { show: false },
+          data: [[x0a, m.ref]], encode: { x: 0, y: 1 },
+          renderItem: function (params, api) {
+            return { type: 'group', children: T.map(function (t) {
+              var arriba = t.p.map(function (q) { return api.coord([q[0], q[1]]); }), abajo = t.p.slice().reverse().map(function (q) { return api.coord([q[0], q[2]]); });
+              return { type: 'polygon', silent: true, shape: { points: arriba.concat(abajo) }, style: { fill: PM.tinte(t.s < 0) } };
+            }) };
+          } });
+        // Bolivia gris punteada (la comparación)
+        if (conNac) series.push({ type: 'line', id: 'n' + g, name: '_bol' + g, xAxisIndex: g, yAxisIndex: g, data: pts[NAC].map(function (p) { return [p[0], p[1]]; }), silent: true, z: 2,
+          symbol: 'none', lineStyle: { width: 1, color: pz, type: [5, 4] }, tooltip: { show: false }, emphasis: { disabled: true } });
+        // la serie: TINTA, con el punto hueco en cada diciembre (la inflación del año) y en el último dato
+        var ult = dat.length - 1;
+        series.push({ type: 'line', id: 'l' + g, name: corto(c), xAxisIndex: g, yAxisIndex: g, z: 4,
+          data: dat.map(function (p, j) {
+            var cierre = (m.cierre && K[p[2]].slice(5) === '12') || j === ult;
+            return cierre ? { value: [p[0], p[1]], symbol: 'circle', symbolSize: j === ult ? 7 : 5 } : { value: [p[0], p[1]], symbol: 'none' };
+          }),
+          showSymbol: true, symbol: 'none', lineStyle: { width: 1.5, color: tinta, cap: 'round', join: 'round' },
+          itemStyle: { color: card, borderColor: tinta, borderWidth: 1.25 }, emphasis: { disabled: true },
+          // la base (cero, o 100 en el nivel): punteada si es la referencia del relleno; si la referencia es Bolivia, una raya fina
+          markLine: { silent: true, symbol: 'none', animation: false, label: { show: false },
+            lineStyle: conNac ? { color: dk ? 'rgba(226,232,240,.38)' : 'rgba(0,18,25,.3)', width: 0.9, type: 'solid' }
+              : { color: dk ? 'rgba(226,232,240,.7)' : 'rgba(0,18,25,.65)', width: 0.9, type: [4, 3] }, data: [{ yAxis: m.ref }] } });
+        // cabeza: el nombre en tinta y, debajo, la cifra del último dato en el color de su lado de la referencia
+        var ns = nombres(c), nom = ns.filter(function (t) { return ancho(t, fNom) <= wP; })[0] || ns[ns.length - 1];
+        var v = dat[ult][1];
+        graphic.push({ type: 'text', silent: true, x: x0, y: y0, style: { text: nom, font: fNom, fill: tinta, align: 'left', verticalAlign: 'top' } });
+        graphic.push({ type: 'text', silent: true, x: x0, y: y0 + fN + 4, style: { text: fmt(v), font: fCif, fill: PM.col(lado(c, dat[ult][2])), align: 'left', verticalAlign: 'top' } });
+      });
+      return {
+        animationDuration: 450,
+        grid: grid, xAxis: xAxis, yAxis: yAxis, series: series, graphic: graphic,
+        // el cursor en un panel marca el mismo mes en los diez
+        axisPointer: { link: [{ xAxisIndex: 'all' }] },
+        tooltip: PM.tooltip(function (ps) {
+          var g = hoverG != null ? hoverG : 0, c = ORDEN[g];
+          var p = ps.filter(function (q) { return q.seriesId === 'l' + g; })[0] || ps.filter(function (q) { return /^l\d+$/.test(q.seriesId); })[0];
+          if (!p) return '';
+          var i = I[0] + Math.round((p.value[0] - X[I[0]]) * 12), v = S[c][i], nv = S[NAC][i];
+          if (v == null) return '';
+          panel(i, c);
+          var h = PM.ttTitulo(nombres(c)[0] + ' · ' + PM.fecha(K[i]), med().nombre + (estado.medida === 'nivel' ? ' · ' + META.base + ' = 100' : ''));
+          h += PM.ttFila(C.tinta, corto(c), fmt(v), 'linea');
+          if (c === NAC) {
+            var nS = CIUD.filter(function (x) { return S[x][i] != null && S[x][i] > nv; }).length;
+            return h + PM.ttTotal('Ciudades sobre Bolivia', nS + ' de ' + CIUD.length);
+          }
+          if (nv != null) h += PM.ttFila(pz, 'Bolivia', fmt(nv), 'punteada');
+          return h + PM.ttTotal('Diferencia con Bolivia', fmtDif(v - nv));
+        }, chico ? {
+          axisPointer: { type: 'line' },
+          // en el teléfono el lienzo es más alto que la pantalla: el vidrio va justo encima del panel tocado (o debajo)
+          position: function (pt, params, dom, rect, size) {
+            var w = size.contentSize[0], h = size.contentSize[1], Wv = size.viewSize[0], q = geo[hoverG != null ? hoverG : 0];
+            var y = q.y0 - h - 6 >= 0 ? q.y0 - h - 6 : q.y1 + 6;
+            return [Math.min(Math.max(pt[0] - w / 2, 4), Math.max(4, Wv - w - 4)), y];
+          }
+        } : { axisPointer: { type: 'line' } })
+      };
+    }
+
+    // ── Pesos de las ciudades en el índice nacional (para la pregunta): el de Bolivia es su promedio
+    // ponderado EXACTO, así que salen de resolver nacional = Σ peso × ciudad en todos los meses. Si el ajuste
+    // no es exacto (residuo de más de 0,005 puntos, o un peso negativo), no se usan.
+    // Las ponderaciones OFICIALES del INE (ipc_pesos.json, verificadas por el scraper contra el índice de Bolivia);
+    // si faltaran, el ajuste exacto de abajo las reproduce (coinciden al sexto decimal).
+    var OFICIAL = null;
+    function pesos() {
+      if (OFICIAL && CIUD.every(function (c) { return OFICIAL[c] > 0; })) { var o = {}; CIUD.forEach(function (c) { o[c] = OFICIAL[c] / 100; }); return o; }
+      var n = CIUD.length, A = [], b = [], i, j, r, filas = [];
+      for (i = 0; i < n; i++) { A.push([]); b.push(0); for (j = 0; j < n; j++) A[i].push(0); }
+      K.forEach(function (f) {
+        var x = CIUD.map(function (c) { return V[c].indice[f]; }), y = V[NAC].indice[f];
+        if (y == null || x.some(function (v) { return v == null; })) return;
+        filas.push([x, y]);
+        for (i = 0; i < n; i++) { b[i] += x[i] * y; for (j = 0; j < n; j++) A[i][j] += x[i] * x[j]; }
+      });
+      if (filas.length < 3 * n) return null;
+      for (i = 0; i < n; i++) {
+        var p = i;
+        for (r = i + 1; r < n; r++) if (Math.abs(A[r][i]) > Math.abs(A[p][i])) p = r;
+        var t = A[i]; A[i] = A[p]; A[p] = t; t = b[i]; b[i] = b[p]; b[p] = t;
+        for (r = i + 1; r < n; r++) { var q = A[r][i] / A[i][i]; for (j = i; j < n; j++) A[r][j] -= q * A[i][j]; b[r] -= q * b[i]; }
+      }
+      var w = [];
+      for (i = n - 1; i >= 0; i--) { var s = b[i]; for (j = i + 1; j < n; j++) s -= A[i][j] * w[j]; w[i] = s / A[i][i]; }
+      var res = 0;
+      filas.forEach(function (fy) { var s = 0; fy[0].forEach(function (x, k) { s += w[k] * x; }); res = Math.max(res, Math.abs(s - fy[1])); });
+      if (!(res < 0.005) || w.some(function (x) { return !(x > 0); })) { console.warn('Pesos de ciudad: ajuste no exacto', res); return null; }
+      var out = {}; CIUD.forEach(function (c, k) { out[c] = w[k]; }); return out;
+    }
+
+    // Meses seguidos (hasta el mes i) que la ciudad lleva del mismo lado de Bolivia
+    // (inicio: la racha llega al comienzo de la serie, así que no se sabe desde cuándo viene)
+    function racha(c, i) {
+      var s0 = null, n = 0, desde = i, inicio = true;
+      for (var j = i; j >= 0; j--) {
+        var v = S[c][j], b = S[NAC][j];
+        if (v == null || b == null) break;
+        var s = v > b ? 1 : v < b ? -1 : 0;
+        if (s0 === null) s0 = s;
+        if (s !== s0 || s === 0) { inicio = false; break; }
+        n++; desde = j;
+      }
+      return { lado: s0, n: n, desde: K[desde], inicio: inicio };
+    }
+
+    // Umbrales de la lectura: la brecha entre la ciudad más alta y la más baja frente a la inflación del país.
+    // Igual o mayor: «muy grande»; desde la mitad: «marcada»; menos: «parejas». En el nivel la vara es lo que
+    // subieron los precios de Bolivia desde la base, y como la brecha se acumula durante años los cortes son
+    // más bajos: la mitad y la quinta parte. Una ciudad está «sobre Bolivia» si su cifra es mayor.
+    var UMBRAL = { variacion: [1, 0.5], nivel: [0.5, 0.2] };
+    function lectura(i) {
+      var m = estado.medida, nac = S[NAC][i];
+      var fil = CIUD.map(function (c) { return { c: c, v: S[c][i] }; }).filter(function (x) { return x.v != null; }).sort(function (a, b) { return b.v - a.v; });
+      var n = fil.length, a = fil[0], z = fil[n - 1], br = a.v - z.v, sobre = fil.filter(function (x) { return x.v > nac; }).length;
+      var rel = br / Math.max(Math.abs(nac - med().ref), 0.05), U = UMBRAL[m === 'nivel' ? 'nivel' : 'variacion'], t;
+      var dist = m === 'nivel' ? PM.num(br, 1) + NB + 'pts' : PM.num(br, 2) + NB + 'pp';
+      var par = 'entre <strong>' + corto(a.c) + '</strong> (' + fmt(a.v) + ') y <strong>' + corto(z.c) + '</strong> (' + fmt(z.v) + ') hay ' + dist;
+      var vara = m === 'nivel' ? 'lo que subieron los precios de Bolivia desde ' + META.base + ' (' + PM.pct(nac - 100, 1, true) + ')' : 'la inflación de Bolivia (' + fmt(nac) + ')';
+      var cuanto = rel >= 1 ? 'más que ' + vara : 'el ' + PM.pct(rel * 100, 0) + ' de ' + vara;
+      if (rel >= U[0]) t = 'La diferencia es <strong>muy grande</strong>: ' + par + ', ' + cuanto + '.';
+      else if (rel >= U[1]) t = 'Hay <strong>diferencias marcadas</strong>: ' + par + ', ' + cuanto + '.';
+      else t = 'Las ciudades van <strong>parejas</strong>: ' + par + ', apenas ' + cuanto + '.';
+      t += ' <strong>' + sobre + ' de ' + n + '</strong> ciudades están sobre Bolivia' + (m === 'nivel' ? ' (sus precios subieron más desde ' + META.base + ').' : '.');
+      var c = estado.k || a.c, rr = racha(c, i);
+      var ladoT = rr.lado > 0 ? 'sobre' : 'bajo';
+      if (!rr.lado || !rr.n) { /* igual a Bolivia: nada que contar */ }
+      else if (rr.inicio) t += ' ' + corto(c) + ' está <strong>' + ladoT + ' Bolivia</strong> desde el comienzo de la serie (' + PM.fecha(rr.desde) + ').';
+      else if (rr.n === 1) t += ' ' + corto(c) + ' pasó a estar <strong>' + ladoT + ' Bolivia</strong> en ' + PM.fecha(K[i]) + '.';
+      else t += ' ' + corto(c) + ' lleva <strong>' + rr.n + ' meses seguidos</strong> ' + ladoT + ' Bolivia (desde ' + PM.fecha(rr.desde) + ').';
+      return t;
+    }
+
+    // Panel de lectura: el RANKING de las diez cifras en el mes bajo el cursor, con barras desde la base
+    function panel(i, c) {
+      if (i == null || !D || S[NAC][i] == null) return;
+      estado.idx = i; estado.k = c && c !== NAC ? c : null;
+      var m = med(), nac = S[NAC][i], cmp = compara();
+      var fil = CIUD.map(function (x) { return { c: x, v: S[x][i] }; }).filter(function (x) { return x.v != null; }).sort(function (a, b) { return b.v - a.v; });
+      var filas = [{ c: NAC, v: nac }].concat(fil), vals = filas.map(function (x) { return x.v; });
+      var lo = Math.min(m.ref, Math.min.apply(null, vals)), hi = Math.max(m.ref, Math.max.apply(null, vals)), sp = (hi - lo) || 1;
+      var pos = function (v) { return (v - lo) / sp * 100; }, b0 = pos(m.ref);
+      var titulo = { interanual: 'Inflación a 12 meses', mensual: 'Variación mensual', nivel: 'Índice · ' + META.base + ' = 100' }[estado.medida];
+      var html = '<div class="rk"><div class="rk-t">' + titulo + (cmp ? ' · la raya es Bolivia' : '') + '</div>' + filas.map(function (x) {
+        var a = pos(Math.min(x.v, m.ref)), w = Math.abs(pos(x.v) - b0), col = x.c === NAC ? PM.col(C.tinta) : PM.col(lado(x.c, i));
+        var barra = '<i style="background:' + col + ';left:' + a + '%;width:' + w + '%"></i>' + (cmp && x.c !== NAC ? '<b style="left:' + pos(nac) + '%"></b>' : '');
+        return '<div class="rk-f' + (x.c === NAC ? ' nac' : '') + (x.c === estado.k ? ' sel' : '') + '"><span class="rk-n" title="' + nombres(x.c)[0] + '">' + corto(x.c) +
+          '</span><span class="rk-b" style="--b0:' + b0 + '%">' + barra + '</span><span class="rk-v" style="color:' + (x.c === NAC ? PM.col(C.tinta) : PM.tx(lado(x.c, i))) + '">' + fmt(x.v) + '</span></div>';
+      }).join('') + '</div>';
+      document.getElementById('panel-fecha').textContent = PM.fecha(K[i]);
+      document.getElementById('panel').innerHTML = html + PM.ctx(lectura(i));
+    }
+
+    // Imagen: los paneles llevan su nombre; la leyenda explica los rellenos y la raya de Bolivia
+    PM.leyendaImagen = function () {
+      var cmp = compara(), niv = estado.medida === 'nivel';
+      return [{ name: cmp ? 'Sobre Bolivia' : niv ? 'Sobre ' + META.base : 'Suben', color: PM.tinte(false), forma: 'area' },
+              { name: cmp ? 'Bajo Bolivia' : niv ? 'Bajo ' + META.base : 'Bajan', color: PM.tinte(true), forma: 'area' }]
+        .concat(cmp ? [{ name: 'Bolivia', color: PM.dk() ? '#8A9699' : '#5C6B70', forma: 'punteada' }] : []);
+    };
+    // Datos: el eje X es numérico (años decimales), así que la tabla se declara
+    PM.tablaDatos = function () {
+      var u = { interanual: 'variación a 12 meses, %', mensual: 'variación mensual, %', nivel: 'índice, ' + META.base + ' = 100' }[estado.medida];
+      return { cols: ['Mes (' + u + ')'].concat(ORDEN.map(function (c) { return nombres(c)[0]; })),
+        filas: I.map(function (i) { return [K[i]].concat(ORDEN.map(function (c) { return S[c][i] == null ? null : +S[c][i].toFixed(4); })); }) };
+    };
+
+    function preguntas() {
+      var u = K.length - 1, f = K[u];
+      var lista = CIUD.map(function (c) { var d = nomDep(DEP[c]); return sinTilde(c).indexOf(sinTilde(d)) >= 0 ? c : c + ' (' + d + ')'; });
+      var ciudades = lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1];
+      var ia = V[NAC].var_interanual, fi = Object.keys(ia).sort();
+      // en cuántos meses de la serie interanual estuvo cada ciudad sobre Bolivia
+      var veces = CIUD.map(function (c) { var n = 0, t = 0; fi.forEach(function (x) { var v = V[c].var_interanual[x]; if (v != null) { t++; if (v > ia[x]) n++; } }); return { c: c, n: n, t: t }; })
+        .sort(function (a, b) { return b.n - a.n; });
+      var mas = veces[0], menos = veces[veces.length - 1];
+      var guarda = estado.medida; estado.medida = 'interanual'; medidas();
+      var ru = CIUD.map(function (c) { return { c: c, r: racha(c, u) }; }).sort(function (a, b) { return b.r.n - a.r.n; })[0];
+      estado.medida = guarda; medidas();
+      var idx = CIUD.map(function (c) { return { c: c, v: V[c].indice[f] }; }).sort(function (a, b) { return b.v - a.v; });
+      var out = [
+        ['¿Qué ciudades mide el IPC?', 'El INE mide los precios del IPC en <strong>' + CIUD.length + ' ciudades capitales y conurbaciones</strong>: ' + ciudades + '. Esa es toda su cobertura: el resto del país (otras ciudades, el área rural) no entra en el índice.'],
+        ['¿Cómo se lee?', 'Cada panel es una ciudad, con <strong>Bolivia primero</strong>. La línea es la ciudad y la gris punteada, Bolivia; el relleno <strong>rosado</strong> marca los meses en que la ciudad estuvo sobre Bolivia y el <strong>turquesa</strong>, debajo. ' +
+          'La cifra grande es el último dato y ordena los paneles; los puntos huecos de la interanual son los diciembres (la inflación de cada año). <p>El cursor marca el mismo mes en todos los paneles y la lectura de la derecha los ordena para ese mes. «Escala común» pone a todas en la misma vara.</p>'],
+        ['¿Por qué difiere la inflación entre ciudades?', 'Cada ciudad tiene su propia canasta (lo que gastan sus hogares) y sus propios precios: el mismo producto no sube igual en todas. Estos datos dicen <strong>dónde</strong> y <strong>cuánto tiempo</strong>, no por qué: ' +
+          'de los ' + mas.t + ' meses de la serie interanual, ' + corto(mas.c) + ' estuvo sobre Bolivia en ' + mas.n + ' y ' + corto(menos.c) + ' en ' + menos.n + '; a ' + PM.fecha(f) + ', ' + corto(ru.c) + ' lleva ' + ru.r.n + ' meses seguidos ' + (ru.r.lado > 0 ? 'sobre' : 'bajo') + ' el país' + (ru.r.inicio ? ' (desde el comienzo de la serie)' : '') + '.'],
+        ['Interanual, mensual y nivel', '<strong>Interanual</strong>: el mes frente al mismo mes del año anterior. <strong>Mensual</strong>: frente al mes anterior. <strong>Nivel</strong>: el índice de precios de la ciudad, con su promedio de ' + META.base + ' = 100.'],
+        ['¿Índice más alto quiere decir precios más altos?', 'No. Cada ciudad tiene su propio índice con base ' + META.base + ' = 100: mide cuánto <strong>cambiaron</strong> sus precios, no cuánto cuestan. A ' + PM.fecha(f) + ' el de ' + corto(idx[0].c) + ' está en ' + PM.num(idx[0].v, 1) +
+          ' y el de ' + corto(idx[idx.length - 1].c) + ' en ' + PM.num(idx[idx.length - 1].v, 1) + ': en ' + corto(idx[0].c) + ' los precios subieron más desde ' + META.base + ', no que vivir ahí sea más caro.']
+      ];
+      if (PESO) {
+        var g = CIUD.slice().sort(function (x, y) { return PESO[y] - PESO[x]; }), resto = g.slice(3).reduce(function (s, c) { return s + PESO[c]; }, 0);
+        out.splice(2, 0, ['¿Por qué Bolivia no es el promedio de las nueve?', 'Porque el índice nacional pondera a cada ciudad por su peso en el gasto de consumo. Los pesos son las ponderaciones oficiales del INE (el índice de Bolivia es el promedio ponderado exacto de las nueve): ' +
+          g.slice(0, 3).map(function (c) { return corto(c) + ' ' + PM.pct(PESO[c] * 100, 1); }).join(', ') + '; las otras seis suman ' + PM.pct(resto * 100, 1) + '. Por eso Bolivia queda cerca de las tres grandes y lejos de una ciudad chica con inflación alta.']);
+      }
+      return out;
+    }
+  })();
+  </script>
+</body>
+</html>

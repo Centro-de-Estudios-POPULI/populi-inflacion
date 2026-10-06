@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light" style="--acento:#C71E1D">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transables y no transables · Populi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="comun/monitor.css" />
+  <style>
+    /* clave de la «Brecha»: los dos tintes del relleno por signo (el color lo pone el script: cambia con el tema) */
+    .ley-b { display: flex; flex-wrap: wrap; gap: 0 12px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <script src="comun/monitor.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="sec-hd">
+      <h2 class="sec-title"><span class="accent-bar"></span>Transables y no transables</h2>
+      <p class="sec-sub" id="sub"></p>
+    </div>
+
+    <div class="hz-bar">
+      <div class="hz-item"><span class="hz-lbl">Medida</span><div class="hz-grp" id="b-medida"></div></div>
+      <div class="hz-item" id="it-base"><span class="hz-lbl">Año base</span><div class="hz-grp" id="b-base"></div></div>
+      <div class="hz-item"><span class="hz-lbl">Rango</span><div class="hz-grp" id="b-rango"></div></div>
+    </div>
+
+    <div class="kpi-grid" id="kpis"></div>
+
+    <div class="main-grid">
+      <div class="chart-card">
+        <div class="chart-ctrl">
+          <div class="tog-grp" id="pastillas"></div>
+          <div class="ley-b" id="ley-brecha">
+            <span class="ref"><span class="lp" id="lp-linea"></span>Brecha</span>
+            <span class="ref"><span class="lp area" id="lp-arr"></span>Transables por encima</span>
+            <span class="ref"><span class="lp area" id="lp-aba"></span>No transables por encima</span>
+          </div>
+          <span class="ref" id="ref-base"><span class="lp dashed"></span><span id="ref-base-t"></span></span>
+        </div>
+        <div class="grafico" id="chart"><div class="loading"><div class="spinner"></div><span>Cargando transables y no transables…</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-hd"><span class="panel-hd-t">Lectura del indicador</span><span class="panel-hd-d" id="panel-fecha"></span></div>
+        <div class="panel-body" id="panel"></div>
+      </div>
+    </div>
+
+    <div class="edu-grid" id="preguntas"></div>
+    <div class="source"><span class="source-txt" id="fuente"></span></div>
+  </div>
+
+  <script>
+  (function () {
+    var C = PM.C, NB = ' ';
+    // rampa(2) de la marca: rojo y turquesa. Los dos grupos pesan lo mismo en la lectura: mismo grosor.
+    var TR = C.rojo, NT = C.turquesa, TINTA = C.tinta, PZ = { claro: C.pizarra, oscuro: C.gris };
+    var BASES = ['2016', '2019', '2024'];
+    // Con menos de 1 pp de diferencia entre las dos variaciones, los grupos «van parejos».
+    var PAREJO = 1;
+    // Curvas (la regla de los mensuales de Actividad): spline con monotonía en x, no inventa picos entre meses.
+    var SUAVE = { smooth: 0.35, smoothMonotone: 'x' };
+    var MED = { ia: 'Interanual', brecha: 'Brecha', nivel: 'Nivel' };
+    var estado = { medida: 'ia', base: '2019', rango: 'todo', fecha: null };
+    var activas = new Set(['t', 'n']);
+    var GRUPOS = [{ k: 't', nombre: 'Transables', color: TR, forma: 'linea' }, { k: 'n', nombre: 'No transables', color: NT, forma: 'linea' }];
+    var IT = {}, IN = {}, YT = {}, YN = {}, K = [], KY = [], GEN, ULT_INE, si = 0, grafico, BASE_PROM = {};
+
+    var pct = function (v) { return PM.pct(v, 1, true); };
+    // la clave de n meses antes, buscada por FECHA (nunca por posición)
+    function menos(f, n) { var t = +f.slice(0, 4) * 12 + (+f.slice(5, 7) - 1) - n, a = Math.floor(t / 12), m = t - a * 12 + 1; return a + '-' + (m < 10 ? '0' : '') + m; }
+    function mesesEntre(a, b) { return (+b.slice(0, 4) * 12 + +b.slice(5, 7)) - (+a.slice(0, 4) * 12 + +a.slice(5, 7)); }
+
+    PM.cargar(['ipc_transables.json', 'ipc_general.json']).then(function (r) {
+      var D = r[0]; GEN = r[1];
+      D.transables.forEach(function (p) { if (p.valor != null) IT[p.fecha] = p.valor; });
+      D.no_transables.forEach(function (p) { if (p.valor != null) IN[p.fecha] = p.valor; });
+      K = Object.keys(IT).filter(function (f) { return IN[f] != null; }).sort();
+      K.forEach(function (f) {
+        var a = menos(f, 12);
+        if (IT[a] != null && IN[a] != null) { YT[f] = (IT[f] / IT[a] - 1) * 100; YN[f] = (IN[f] / IN[a] - 1) * 100; }
+      });
+      KY = K.filter(function (f) { return YT[f] != null; });
+      ULT_INE = GEN.var_interanual[GEN.var_interanual.length - 1].fecha;
+      // años base posibles: sólo los completos en las dos series
+      var bases = BASES.filter(function (a) { return K.filter(function (f) { return f.slice(0, 4) === a; }).length === 12; });
+      if (bases.indexOf(estado.base) < 0) estado.base = bases[bases.length - 1];
+      bases.forEach(function (a) {
+        var meses = K.filter(function (f) { return f.slice(0, 4) === a; });
+        BASE_PROM[a] = { t: meses.reduce(function (s, f) { return s + IT[f]; }, 0) / 12, n: meses.reduce(function (s, f) { return s + IN[f]; }, 0) / 12 };
+      });
+      estado.fecha = KY[KY.length - 1];
+
+      PM.botonera(document.getElementById('b-medida'), [['ia', 'Interanual'], ['brecha', 'Brecha'], ['nivel', 'Nivel']], estado.medida, function (v) {
+        estado.medida = v; vista(); grafico.redibujar(); panel(estado.fecha);
+      });
+      PM.botonera(document.getElementById('b-base'), bases.map(function (a) { return [a, a]; }), estado.base, function (v) {
+        estado.base = v; vista(); grafico.redibujar(); panel(estado.fecha);
+      });
+      PM.botonera(document.getElementById('b-rango'), [['2a', '2 años'], ['5a', '5 años'], ['todo', 'Todo']], estado.rango, function (v) {
+        estado.rango = v; grafico.redibujar();
+      });
+      PM.pastillas(document.getElementById('pastillas'), GRUPOS, activas, function () { grafico.redibujar(); });
+      cifras(); vista();
+      var el = document.getElementById('chart');
+      el.innerHTML = '';
+      grafico = PM.montar(el, opciones);
+      grafico.chart.on('click', function (p) { var KK = claves(); if (p.dataIndex != null && KK[si + p.dataIndex]) panel(KK[si + p.dataIndex]); });
+      panel(estado.fecha);
+      PM.alCambiarTema(function () { cifras(); claveBrecha(); panel(estado.fecha); });
+      PM.preguntas(document.getElementById('preguntas'), preguntas());
+      document.getElementById('fuente').innerHTML = 'Fuente: <a href="https://statistics.cepal.org/portal/cepalstat/" target="_blank" rel="noopener">CEPAL — CEPALSTAT, índices de precios al consumidor de bienes transables y no transables de Bolivia</a> · Elaboración: Centro de Estudios POPULI · Datos al: ' + PM.fecha(K[K.length - 1]);
+    }).catch(function (e) { console.error(e); PM.error(document.getElementById('chart')); });
+
+    // la serie que se dibuja: las variaciones arrancan un año después que los índices
+    function claves() { return estado.medida === 'nivel' ? K : KY; }
+    function nivel(k, f) { var S = k === 't' ? IT : IN; return S[f] == null ? null : S[f] / BASE_PROM[estado.base][k] * 100; }
+    function rezago() {
+      var n = mesesEntre(K[K.length - 1], ULT_INE);
+      return n <= 0 ? '' : ' Lo calcula la CEPAL y va ' + (n === 1 ? 'un mes' : n + ' meses') + ' detrás del INE: llega a ' + PM.fecha(K[K.length - 1]) + ' y el INE ya publicó ' + PM.fecha(ULT_INE) + '.';
+    }
+
+    function vista() {
+      var m = estado.medida;
+      document.getElementById('it-base').style.display = m === 'nivel' ? '' : 'none';
+      document.getElementById('pastillas').style.display = m === 'brecha' ? 'none' : '';
+      document.getElementById('ley-brecha').style.display = m === 'brecha' ? '' : 'none';
+      document.getElementById('ref-base').style.display = m === 'nivel' ? '' : 'none';
+      document.getElementById('ref-base-t').textContent = 'Promedio de ' + estado.base + ' = 100';
+      document.getElementById('sub').textContent = ({
+        ia: 'Variación a 12 meses (%) de los precios de los bienes transables, que se compran y venden con el exterior, y de los no transables, que se producen y se consumen en el país.',
+        brecha: 'Variación a 12 meses de los transables menos la de los no transables, en puntos porcentuales (pp): sobre el cero, en rosado, los transables suben más; debajo, en turquesa, los no transables.',
+        nivel: 'Índice de precios de cada grupo con el promedio de ' + estado.base + ' = 100: cuánto subió cada uno desde ese año. Sobre la raya punteada, sus precios están más altos que entonces.'
+      })[m] + rezago();
+      claveBrecha();
+    }
+    function claveBrecha() {
+      document.getElementById('lp-linea').style.setProperty('--pc', PM.col(TINTA));
+      document.getElementById('lp-arr').style.setProperty('--pc', PM.tinte(false));
+      document.getElementById('lp-aba').style.setProperty('--pc', PM.tinte(true));
+    }
+
+    function cifras() {
+      var f = KY[KY.length - 1], p = KY[KY.length - 2], a = menos(f, 12);
+      var ult = function (S) { return PM.ultimos(KY.map(function (x) { return S[x]; }), 24); };
+      var grupo = function (S, color, rotulo) {
+        var d = S[f] - S[p];
+        return PM.kpi({ color: color, rotulo: rotulo, valor: pct(S[f]),
+          delta: PM.flecha(d, 0.05) + ' ' + PM.num(Math.abs(d), 1) + NB + 'pp en el mes',
+          tono: Math.abs(d) < 0.05 ? 'neutro' : d > 0 ? 'malo' : 'bueno',            // en precios, subir es malo
+          serie: ult(S) });
+      };
+      var b = YT[f] - YN[f], bA = YT[a] != null ? YT[a] - YN[a] : null;
+      var gen = GEN.var_interanual, gU = gen[gen.length - 1];
+      document.getElementById('kpis').innerHTML =
+        grupo(YT, TR, 'Transables') + grupo(YN, NT, 'No transables') +
+        PM.kpi({ color: TINTA, rotulo: 'Brecha', valor: PM.pp(b, 1), delta: bA != null ? 'hace 12 meses: ' + PM.pp(bA, 1) : 'transables − no transables',
+          tono: 'neutro', serie: PM.ultimos(KY.map(function (x) { return YT[x] - YN[x]; }), 24) }) +
+        // la cifra general del INE ya trae un mes más: el desglose va detrás
+        PM.kpi({ color: PZ, rotulo: 'IPC general · ' + PM.fecha(gU.fecha), valor: pct(gU.valor),
+          delta: mesesEntre(f, gU.fecha) > 0 ? 'el desglose llega a ' + PM.fecha(f) : 'INE, interanual', tono: 'neutro',
+          serie: PM.ultimos(gen.map(function (x) { return x.valor; }), 24) });
+    }
+
+    // Corta la serie por el signo respecto de la base e inserta el cruce interpolado: sin eso el relleno
+    // inventa un escalón en el mes en que la línea atraviesa el cero (como en los paneles del PIB).
+    function cortar(pts, base) {
+      var aug = [];
+      for (var i = 0; i < pts.length; i++) {
+        aug.push(pts[i]);
+        if (i < pts.length - 1) {
+          var y0 = pts[i][1], y1 = pts[i + 1][1];
+          if ((y0 - base) * (y1 - base) < 0) { var t = (base - y0) / (y1 - y0); aug.push([pts[i][0] + t * (pts[i + 1][0] - pts[i][0]), base]); }
+        }
+      }
+      return { arriba: aug.map(function (p) { return [p[0], Math.max(p[1], base)]; }), abajo: aug.map(function (p) { return [p[0], Math.min(p[1], base)]; }) };
+    }
+
+    function opciones() {
+      var el = document.getElementById('chart'), m = estado.medida, KK = claves(), card = PM.var('--card') || '#fff';
+      si = PM.desde(KK, estado.rango);
+      var KR = KK.slice(si), n = KR.length, series = [], minimo = Infinity, vm = [];
+      var r2 = function (v) { return v == null ? null : Math.round(v * 1e4) / 1e4; };
+      if (m === 'brecha') {
+        var B = KR.map(function (f) { return r2(YT[f] - YN[f]); });
+        // Relleno por signo SÓLIDO con los tintes oficiales: UNA serie de área con los MISMOS datos y la MISMA curva
+        // que la línea, coloreada por un visualMap por tramos (sobre el cero rosado: los transables suben más). Así
+        // la línea va curva (pedido de Carlos) y el relleno la sigue exacto; partir el área en dos tramos rectos no
+        // lo permitía.
+        var lo = Math.min.apply(null, B.filter(function (x) { return x != null; })), hi = Math.max.apply(null, B.filter(function (x) { return x != null; }));
+        vm = [{ type: 'piecewise', show: false, seriesIndex: 0, dimension: 1,   // tramos FINITOS: abiertos, ECharts aborta
+          pieces: [{ gte: Math.min(lo, 0) - 1, lt: 0, color: PM.tinte(true) }, { gte: 0, lte: Math.max(hi, 0) + 1, color: PM.tinte(false) }] }];
+        series.push(PM.mezclar({ type: 'line', name: '_signo', data: B, silent: true, symbol: 'none', z: 1, connectNulls: false,
+          lineStyle: { width: 0 }, areaStyle: { origin: 0, opacity: 1 }, tooltip: { show: false }, emphasis: { disabled: true } }, SUAVE));
+        series.push(PM.linea(TINTA, { ancho: 2, extra: PM.mezclar({ name: 'Brecha', data: B, z: 5, emphasis: { disabled: true }, markLine: PM.cero(),
+          markPoint: PM.puntoFinal(TINTA, n - 1, B[n - 1]) }, SUAVE) }));
+      } else {
+        GRUPOS.filter(function (g) { return activas.has(g.k); }).forEach(function (g) {
+          var val = function (f) { return m === 'nivel' ? nivel(g.k, f) : (g.k === 't' ? YT : YN)[f]; };
+          // puntos huecos: todos los meses en un rango corto; con más años, el cierre de cada año y el último
+          var data = KR.map(function (f, j) {
+            var v = r2(val(f));
+            if (v == null) return null;
+            if (v < minimo) minimo = v;
+            var punto = n <= 30 || PM.periodo(f).m === 11 || j === n - 1;
+            return punto ? { value: v, symbol: 'circle', symbolSize: j === n - 1 ? 7 : 5 } : { value: v, symbol: 'none' };
+          });
+          series.push(PM.linea(g.color, { ancho: 2.25, extra: PM.mezclar({
+            name: g.nombre, data: data, z: g.k === 't' ? 6 : 5, showSymbol: true, showAllSymbol: true, symbol: 'none', connectNulls: false,
+            itemStyle: { color: card, borderColor: PM.col(g.color), borderWidth: 1.25 }, emphasis: { disabled: true }
+          }, SUAVE) }));
+        });
+        if (series.length) {
+          if (m === 'nivel') series[0].markLine = { silent: true, symbol: 'none', animation: false, label: { show: false }, data: [{ yAxis: 100 }],
+            lineStyle: { color: PM.col(PZ), width: 1.25, type: [5, 4] } };
+          else if (minimo < 0) series[0].markLine = PM.cero();
+        }
+      }
+      var xs = PM.ejeTiempo(KR, el);
+      return {
+        grid: PM.grid({ top: m === 'ia' ? 16 : 28 }),
+        xAxis: xs,
+        visualMap: vm,
+        yAxis: m === 'ia' ? PM.ejeY({ fmt: 'pct' })
+          : m === 'brecha' ? PM.ejeY({ unidad: 'pp', extra: { nameTextStyle: { align: 'left' } } })
+          : PM.ejeY({ unidad: estado.base + ' = 100', extra: { scale: true, nameTextStyle: { align: 'left' } } }),
+        tooltip: PM.tooltip(function (ps) {
+          var p = ps.filter(function (q) { return q.seriesName && q.seriesName.charAt(0) !== '_' && q.value != null; })[0];
+          if (!p) return '';
+          var f = KR[p.dataIndex];
+          if (!f) return '';
+          panel(f);
+          var t = YT[f], nn = YN[f];
+          if (m === 'nivel') {
+            var lt = nivel('t', f), ln = nivel('n', f), h = PM.ttTitulo(PM.fecha(f), 'Promedio de ' + estado.base + ' = 100');
+            if (activas.has('t')) h += PM.ttFila(TR, 'Transables', PM.num(lt, 1), 'linea');
+            if (activas.has('n')) h += PM.ttFila(NT, 'No transables', PM.num(ln, 1), 'linea');
+            return h + PM.ttTotal('Diferencia', PM.signo(lt - ln, 1) + NB + 'pts');
+          }
+          if (m === 'brecha') return PM.ttTitulo(PM.fecha(f), 'Variación a 12 meses') + PM.ttFila(TINTA, 'Brecha', PM.pp(t - nn, 1), 'linea') +
+            PM.ttFila(null, 'Transables', pct(t)) + PM.ttFila(null, 'No transables', pct(nn));
+          var h2 = PM.ttTitulo(PM.fecha(f), 'Variación a 12 meses');
+          if (activas.has('t')) h2 += PM.ttFila(TR, 'Transables', pct(t), 'linea');
+          if (activas.has('n')) h2 += PM.ttFila(NT, 'No transables', pct(nn), 'linea');
+          return h2 + PM.ttTotal('Brecha', PM.pp(t - nn, 1));
+        }),
+        series: series
+      };
+    }
+
+    // ── Lectura ──────────────────────────────────────────────────────────────
+    // «suben 4,2%» · «bajan 3,4%» · «no cambian»: el verbo sigue al signo
+    function mueve(v, color) {
+      return v >= 0.05 ? 'suben ' + PM.dt(color, PM.pct(v, 1)) : v <= -0.05 ? 'bajan ' + PM.dt(color, PM.pct(-v, 1)) : 'no cambian';
+    }
+    function lectura(f) {
+      var m = estado.medida, t = YT[f], n = YN[f], a = menos(f, 12), txt = '';
+      if (m === 'nivel') {
+        // el nivel se lee contra el año base; los últimos 12 meses van aparte, para no mezclar las dos lecturas
+        var lt = nivel('t', f), ln = nivel('n', f), dif = lt - ln, quien = dif > 0 ? 'los transables' : 'los no transables';
+        txt = (Math.abs(dif) < PAREJO ? '<strong>Parejos frente a ' + estado.base + '.</strong> '
+          : '<strong>Frente a ' + estado.base + ', ' + (lt >= 100 && ln >= 100 ? 'subieron más ' + quien : 'van más arriba ' + quien) + '.</strong> ') +
+          'Los precios de los transables están ' + PM.dt(TR, PM.pct(lt - 100, 1, true)) + ' y los de los no transables, ' + PM.dt(NT, PM.pct(ln - 100, 1, true)) + '.';
+        return txt + (t == null ? '' : ' En los últimos 12 meses, los transables ' + mueve(t, TR) + ' y los no transables ' + mueve(n, NT) + '.');
+      }
+      if (t == null) return 'Las variaciones a 12 meses arrancan un año después que los índices.';
+      var b = t - n, bA = YT[a] != null ? YT[a] - YN[a] : null;
+      txt += (Math.abs(b) < PAREJO ? '<strong>Van parejos.</strong> ' : '<strong>' + (b > 0 ? 'Los transables' : 'Los no transables') + ' van por encima.</strong> ') +
+        'En 12 meses, los transables ' + mueve(t, TR) + ' y los no transables ' + mueve(n, NT) + ': ' + PM.pp(b, 1) + ' de brecha.';
+      if (bA != null) txt += ' Hace un año la brecha era de ' + PM.pp(bA, 1) + (bA * b < 0 && Math.abs(bA) >= PAREJO && Math.abs(b) >= PAREJO ? ', con el orden al revés.' : '.');
+      return txt;
+    }
+
+    function panel(f) {
+      if (!f || IT[f] == null) return;
+      estado.fecha = f;
+      var m = estado.medida, a = menos(f, 12), t = YT[f], n = YN[f], hace = function (S) { return S[a] != null ? ' Hace 12 meses: ' + pct(S[a]) + '.' : ''; };
+      var html;
+      if (m === 'nivel') {
+        var lt = nivel('t', f), ln = nivel('n', f), ref = 'promedio de ' + estado.base;
+        html = PM.pb(TR, 'Transables · ' + estado.base + ' = 100', PM.num(lt, 1), 'Lo que se compra y se vende con el exterior: ' + PM.pct(lt - 100, 1, true) + ' frente al ' + ref + '.') +
+          PM.pb(NT, 'No transables · ' + estado.base + ' = 100', PM.num(ln, 1), 'Lo que se produce y se consume en el país: ' + PM.pct(ln - 100, 1, true) + ' frente al ' + ref + '.') +
+          PM.pb(TINTA, 'Diferencia', PM.signo(lt - ln, 1) + NB + 'pts', 'Transables menos no transables, en puntos del índice.');
+      } else {
+        html = PM.pb(TR, 'Transables', pct(t), 'Lo que se compra y se vende con el exterior.' + hace(YT)) +
+          PM.pb(NT, 'No transables', pct(n), 'Lo que se produce y se consume en el país.' + hace(YN)) +
+          PM.pb(TINTA, 'Brecha', t != null ? PM.pp(t - n, 1) : '—', 'Variación de los transables menos la de los no transables.' +
+            (YT[a] != null ? ' Hace 12 meses: ' + PM.pp(YT[a] - YN[a], 1) + '.' : ''));
+      }
+      document.getElementById('panel-fecha').textContent = PM.fecha(f);
+      document.getElementById('panel').innerHTML = html + PM.ctx(lectura(f));
+    }
+
+    // ── Descargas: la leyenda de la imagen sigue la medida; los datos, la tabla completa ──
+    PM.leyendaImagen = function () {
+      if (estado.medida === 'brecha') return [{ name: 'Brecha (pp)', color: PM.col(TINTA), forma: 'linea' },
+        { name: 'Transables por encima', color: PM.tinte(false), forma: 'area' }, { name: 'No transables por encima', color: PM.tinte(true), forma: 'area' }];
+      var out = GRUPOS.filter(function (g) { return activas.has(g.k); }).map(function (g) { return { name: g.nombre, color: PM.col(g.color), forma: 'linea' }; });
+      if (estado.medida === 'nivel') out.push({ name: 'Promedio de ' + estado.base + ' = 100', color: PM.col(PZ), forma: 'punteada' });
+      return out;
+    };
+    PM.tablaDatos = function () {
+      return { cols: ['Mes', 'Índice transables (CEPAL)', 'Índice no transables (CEPAL)', 'Transables, variación a 12 meses (%)', 'No transables, variación a 12 meses (%)', 'Brecha (pp)'],
+        filas: K.map(function (f) { return [f, IT[f], IN[f], YT[f], YN[f], YT[f] != null ? YT[f] - YN[f] : null]; }) };
+    };
+
+    function preguntas() {
+      var uC = K[K.length - 1];
+      return [
+        ['¿Qué es un bien transable?', '<p>Un bien que se compra o se vende con el exterior, como la ropa, los electrodomésticos o buena parte de los alimentos.</p>' +
+          '<p>Como se puede traer o llevar, su precio en bolivianos sigue al <strong>tipo de cambio</strong> y a los <strong>precios de afuera</strong>: no puede alejarse mucho del que tiene en los países vecinos.</p>'],
+        ['¿Y uno no transable?', '<p>Un bien o servicio que se produce y se consume en el país porque no se puede traer de afuera: el alquiler, la peluquería, el colegio, el pasaje de micro.</p>' +
+          '<p>Su precio depende sobre todo de los <strong>costos y salarios locales</strong>.</p>'],
+        ['¿Cómo se lee la brecha?', 'Es la variación a 12 meses de los transables menos la de los no transables, en puntos porcentuales. Positiva: lo que se comercia con el exterior sube más rápido que lo que se produce adentro; negativa, al revés. Es una cuenta: dice <strong>qué grupo sube más, no por qué</strong>.'],
+        ['¿Qué muestra «Nivel»?', 'Cada índice con el promedio del año elegido igual a 100. Si un grupo marca 150, sus precios están 50% más altos que en ese año. Muestra cuánto subió cada grupo desde una fecha, y no sólo en los últimos 12 meses.'],
+        ['¿Por qué va un mes atrás?', 'La separación en transables y no transables no la publica el INE: es un cálculo de la CEPAL, que la difunde en CEPALSTAT y la actualiza después. Hoy llega a <strong>' + PM.fecha(uC, true) + '</strong> y el INE ya publicó el índice general de <strong>' + PM.fecha(ULT_INE, true) + '</strong>.'],
+        ['¿Por qué separar los dos grupos?', 'Porque responden a cosas distintas: los transables, a lo que pasa con el dólar y con los precios del mundo; los no transables, a la economía de adentro. Ver cuál sube más dice dónde se registra el alza de precios; para saber por qué, hay que mirar qué cambió en cada uno.']
+      ];
+    }
+  })();
+  </script>
+</body>
+</html>

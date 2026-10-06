@@ -78,6 +78,20 @@
     var pond = function (x) { return PM.num(x, 2) + '%'; };
     var mesAnterior = function (f) { var y = +f.slice(0, 4), m = +f.slice(5, 7) - 1; if (!m) { y--; m = 12; } return y + '-' + (m < 10 ? '0' : '') + m; };
     var anioAnterior = function (f) { return (+f.slice(0, 4) - 1) + f.slice(4); };
+    // Definiciones: las del dato (meta.definiciones). El núcleo es el ESTÁNDAR: IPC sin alimentos ni energía.
+    var DEF = { nucleo: 'IPC sin alimentos ni energía', alimentos: 'Alimentos y bebidas no alcohólicas', energia: 'Electricidad, gas y combustibles' };
+    var COMP = ['nucleo', 'alimentos', 'energia'], IDX = {};
+    // Aporte de cada grupo a la inflación a 12 meses, en pp: peso × (índice hoy − índice hace 12 meses) / Σ peso ×
+    // índice hace 12 meses. Los tres suman la interanual del índice general (es una cuenta, no una causa).
+    function aportes(f) {
+      var pm = DESC.meta, a = anioAnterior(f), den = 0, out = {};
+      COMP.forEach(function (k) { den += IDX[k][a] != null && IDX[k][f] != null ? pm[k].ponderacion_total * IDX[k][a] : NaN; });
+      COMP.forEach(function (k) { out[k] = pm[k].ponderacion_total * (IDX[k][f] - IDX[k][a]) / den * 100; });
+      return out;
+    }
+    var pp2 = function (v) { return PM.num(Math.abs(v), 2) + ' pp'; };
+    // en el panel, la definición sin su paréntesis (la completa va en las preguntas)
+    var corto = function (d) { return d.replace(/\s*\(.*\)\s*$/, ''); };
     function interanual(serie) {                               // variación a 12 meses desde el índice
       var out = [];
       for (var i = 12; i < serie.length; i++) out.push({ fecha: serie[i].fecha, valor: (serie[i].valor / serie[i - 12].valor - 1) * 100 });
@@ -87,6 +101,8 @@
     PM.cargar(['ipc_general.json', 'ipc_descomposicion.json', 'metadata.json']).then(function (r) {
       GEN = r[0]; DESC = r[1]; META = r[2];
       var pm = DESC.meta;
+      if (pm.definiciones) DEF = pm.definiciones;
+      COMP.forEach(function (k) { IDX[k] = {}; DESC[k].forEach(function (p) { IDX[k][p.fecha] = p.valor; }); });
       YOY = { general: interanual(DESC.general), nucleo: interanual(DESC.nucleo), alimentos: interanual(DESC.alimentos), energia: interanual(DESC.energia) };
       SERIES_DESC = [
         { k: 'general', nombre: 'General', color: C.rojo, forma: 'linea', ancho: 2.5, area: true },
@@ -303,11 +319,15 @@
       estado.idx.var = i;
       var m = GEN.var_mensual[i], a = GEN.var_acumulada[i], t = GEN.var_interanual[i], anio = t.fecha.slice(0, 4);
       var vt = PM.dt(C.rojo, pct2(t.valor)), txt;
-      if (t.valor > 15) txt = 'Con una inflación interanual de ' + vt + ', Bolivia atraviesa un periodo de <strong>fuerte erosión del poder adquisitivo</strong>. Los precios son significativamente más altos que hace un año, afectando especialmente a los hogares de menores ingresos. Un incremento de esta magnitud refleja presiones inflacionarias sostenidas que se distribuyen a lo largo de toda la cadena productiva y comercial.';
-      else if (t.valor > 8) txt = 'La inflación interanual de ' + vt + ' se sitúa en <strong>niveles elevados</strong>, muy por encima del promedio histórico boliviano. Estas presiones sostenidas sobre los precios impactan tanto al consumidor final como a las expectativas del sector privado sobre la efectividad de la política monetaria y fiscal.';
-      else if (t.valor > 4) txt = 'Con ' + vt + ' interanual, la inflación se encuentra <strong>por encima del rango habitual</strong> para la economía boliviana. Expectativas de inflación crecientes indican una menor confianza en el éxito futuro de las políticas de estabilización.';
-      else if (t.valor > 0) txt = 'La inflación interanual de ' + vt + ' se mantiene dentro de <strong>niveles controlados</strong>, en línea con el comportamiento histórico. Expectativas de inflación decrecientes indican mayor confianza en la política monetaria y fiscal.';
-      else txt = 'Se registra <strong>deflación interanual</strong> (' + vt + '): el nivel general de precios es inferior al de hace 12 meses. Puede reflejar caída en demanda agregada o ajustes en precios regulados.';
+      // la cuenta en llano (lo que costaba 100 Bs) y la interanual de hace un año, buscada por FECHA
+      var tA = GEN.var_interanual.filter(function (p) { return p.fecha === anioAnterior(t.fecha); })[0];
+      var cuenta = ' La canasta que costaba 100 Bs en ' + PM.fecha(anioAnterior(t.fecha), true) + ' cuesta ' + PM.num(100 + t.valor, 2) + ' Bs en ' + PM.fecha(t.fecha, true) + '.' +
+        (tA ? ' Hace un año, la interanual era de ' + pct2(tA.valor) + '.' : '');
+      if (t.valor > 15) txt = 'Con una inflación interanual de ' + vt + ', Bolivia atraviesa un periodo de <strong>fuerte erosión del poder adquisitivo</strong>. Los precios son significativamente más altos que hace un año, afectando especialmente a los hogares de menores ingresos.' + cuenta;
+      else if (t.valor > 8) txt = 'La inflación interanual de ' + vt + ' se sitúa en <strong>niveles elevados</strong>, muy por encima del promedio histórico boliviano.' + cuenta;
+      else if (t.valor > 4) txt = 'Con ' + vt + ' interanual, la inflación se encuentra <strong>por encima del rango habitual</strong> para la economía boliviana.' + cuenta;
+      else if (t.valor > 0) txt = 'La inflación interanual de ' + vt + ' se mantiene dentro de <strong>niveles controlados</strong>, en línea con el comportamiento histórico.' + cuenta;
+      else txt = 'Se registra <strong>deflación interanual</strong> (' + vt + '): el nivel general de precios es inferior al de hace 12 meses.' + cuenta;
       document.getElementById('panel-fecha').textContent = PM.fecha(t.fecha);
       document.getElementById('panel').innerHTML =
         PM.pb(C.turquesa, 'Inflación mensual', pct2(m.valor),
@@ -324,18 +344,28 @@
       estado.idx.desc = i;
       var pm = DESC.meta, g = YOY.general[i], nu = YOY.nucleo[i], al = YOY.alimentos[i], en = YOY.energia[i];
       var cE = SERIES_DESC[3].color;
-      var comp = [{ n: 'Alimentos', v: al.valor, c: C.oro }, { n: 'Energía', v: en.valor, c: cE }, { n: 'Núcleo', v: nu.valor, c: C.turquesa }];
-      comp.sort(function (a, b) { return b.v - a.v; });
-      var lider = comp[0], txt;
-      if (al.valor > nu.valor * 1.5) txt = 'Los <strong>alimentos</strong> son el principal motor inflacionario con ' + PM.dt(C.oro, pct2(al.valor)) + ' interanual, muy por encima de la inflación núcleo (' + PM.dt(C.turquesa, pct2(nu.valor)) + '). La presión sobre alimentos tiene un impacto desproporcionado en hogares de menores ingresos, que destinan mayor proporción de su gasto a la canasta alimentaria.';
-      else if (en.valor > nu.valor * 1.5) txt = 'La <strong>energía</strong> lidera las presiones inflacionarias con ' + PM.dt(cE, pct2(en.valor)) + ' interanual. Esto se transmite gradualmente al resto de la economía a través de costos de transporte y producción, anticipando posibles incrementos futuros en la inflación núcleo.';
-      else txt = 'La inflación se distribuye de forma <strong>relativamente uniforme</strong> entre los componentes. El componente con mayor variación es <strong>' + lider.n + '</strong> (' + PM.dt(lider.c, pct2(lider.v)) + '), pero la diferencia entre categorías es moderada.';
+      // Lectura en lenguaje de CUENTA: cuántos puntos de la interanual aporta cada grupo (según lo que sube y lo
+      // que pesa). Dice cómo se reparte la inflación, no qué la causa. Un grupo «aporta más de la mitad» si
+      // suma el 50% o más de la interanual.
+      var ap = aportes(g.fecha), MITAD = 0.5;
+      var comp = [{ k: 'nucleo', n: 'el núcleo', pl: false, v: nu.valor, c: C.turquesa }, { k: 'alimentos', n: 'los alimentos', pl: true, v: al.valor, c: C.oro },
+                  { k: 'energia', n: 'la energía', pl: false, v: en.valor, c: cE }];
+      var verbo = function (x) { var v = ap[x.k]; return x.n + ' ' + (v >= 0 ? (x.pl ? 'suman ' : 'suma ') : (x.pl ? 'restan ' : 'resta ')) + pp2(v); };
+      var cap = function (t) { return t.charAt(0).toUpperCase() + t.slice(1); };
+      var sube = comp.slice().sort(function (a, b) { return b.v - a.v; })[0], aporta = comp.slice().sort(function (a, b) { return ap[b.k] - ap[a.k]; })[0];
+      var txt = g.valor <= 0 ? '<strong>Los precios bajan en 12 meses.</strong> '
+        : ap[aporta.k] / g.valor >= MITAD ? '<strong>' + cap(aporta.n) + (aporta.pl ? ' aportan' : ' aporta') + ' más de la mitad.</strong> '
+        : '<strong>La inflación se reparte entre los tres grupos.</strong> ';
+      txt += 'De ' + PM.dt(C.rojo, pct2(g.valor)) + ', ' + verbo(comp[0]) + ', ' + verbo(comp[1]) + ' y ' + verbo(comp[2]) + '. ';
+      txt += sube.k !== aporta.k
+        ? 'Lo que más sube es ' + sube.n + ' (' + PM.dt(sube.c, pct2(sube.v)) + '), que pesa ' + pond(pm[sube.k].ponderacion_total) + ' de la canasta.'
+        : cap(sube.n) + (sube.pl ? ' son' : ' es') + ' también el grupo que más sube (' + PM.dt(sube.c, pct2(sube.v)) + ').';
       document.getElementById('panel-fecha').textContent = PM.fecha(g.fecha);
       document.getElementById('panel').innerHTML =
-        PM.pb(C.rojo, 'IPC General', pct2(g.valor), 'Variación interanual del índice general de precios. Incluye los <strong>' + pm.general.productos + ' productos</strong> de la canasta IPC.') +
-        PM.pb(C.turquesa, 'Inflación núcleo', pct2(nu.valor), '<strong>' + pm.nucleo.productos + ' productos</strong> (' + pond(pm.nucleo.ponderacion_total) + ' de la canasta). Excluye alimentos y energía por su volatilidad, reflejando la tendencia de fondo de los precios.') +
-        PM.pb(C.oro, 'Alimentos', pct2(al.valor), '<strong>' + pm.alimentos.productos + ' productos</strong> (' + pond(pm.alimentos.ponderacion_total) + '). Alimentos y bebidas, sensibles a factores estacionales y climáticos que generan variaciones significativas a lo largo del año.') +
-        PM.pb(cE, 'Energía', pct2(en.valor), '<strong>' + pm.energia.productos + ' productos</strong> (' + pond(pm.energia.ponderacion_total) + '). Combustibles, electricidad y gas, influenciados por mercados internacionales y regulaciones gubernamentales.') +
+        PM.pb(C.rojo, 'IPC General', pct2(g.valor), '<strong>' + pm.general.productos + ' productos</strong> de la canasta.') +
+        PM.pb(C.turquesa, 'Inflación núcleo', pct2(nu.valor), '<strong>' + pm.nucleo.productos + ' productos</strong> (' + pond(pm.nucleo.ponderacion_total) + ' de la canasta). ' + corto(DEF.nucleo) + '.') +
+        PM.pb(C.oro, 'Alimentos', pct2(al.valor), '<strong>' + pm.alimentos.productos + ' productos</strong> (' + pond(pm.alimentos.ponderacion_total) + '). ' + corto(DEF.alimentos) + '.') +
+        PM.pb(cE, 'Energía', pct2(en.valor), '<strong>' + pm.energia.productos + ' productos</strong> (' + pond(pm.energia.ponderacion_total) + '). ' + corto(DEF.energia) + '.') +
         PM.ctx(txt);
     }
 
@@ -350,7 +380,10 @@
       ['¿Por qué suben los precios?',
         '<p>Más allá de los movimientos en <strong>precios relativos</strong> —que un producto suba o baje respecto a otro—, una inflación alta y generalizada revela un problema más profundo: <strong>el dinero está perdiendo valor</strong>.</p>' +
         '<p>Cuando el Banco Central emite más dinero del que la economía necesita (por ejemplo, para financiar déficits fiscales), hay más bolivianos persiguiendo la misma cantidad de bienes. El resultado inevitable es que los precios suben. Esto es lo que los economistas llaman el <strong>origen monetario de la inflación</strong>: demasiado dinero persiguiendo pocos bienes.</p>' +
-        '<p>En Bolivia, la caída de reservas internacionales ha debilitado el respaldo de la moneda, mientras que el crédito del BCB al sector público ha expandido la base monetaria. Estos <strong>desequilibrios macroeconómicos</strong> —no la escasez puntual de un producto— son la raíz de una inflación persistente. Por eso, para entender la inflación, es necesario mirar también los indicadores monetarios que la causan.</p>']
+        '<p>En Bolivia, la caída de reservas internacionales ha debilitado el respaldo de la moneda, mientras que el crédito del BCB al sector público ha expandido la base monetaria. Estos <strong>desequilibrios macroeconómicos</strong> —no la escasez puntual de un producto— son la raíz de una inflación persistente. Por eso, para entender la inflación, es necesario mirar también los indicadores monetarios que la causan.</p>'],
+      ['La contribución no explica causas',
+        '<p>En «Descomposición», el aporte de cada grupo (núcleo, alimentos, energía) reparte la inflación según lo que sube y lo que pesa en la canasta: es aritmética del índice y se cumple siempre. Dice dónde se registró el alza, no por qué ocurrió.</p>' +
+        '<p>La misma causa puede subir los tres grupos a la vez, y el alza de uno pasa a otros (el combustible, al pasaje y a la comida). Lo explica Brian Albrecht en <a href="https://www.economicforces.xyz/p/never-reason-from-an-accounting-identity-c4f" target="_blank" rel="noopener">«Never Reason from an Accounting Identity»</a> (Economic Forces, 2026).</p>']
     ];
   })();
   </script>

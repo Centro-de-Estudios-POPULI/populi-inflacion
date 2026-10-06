@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light" style="--acento:#C71E1D">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inflación por departamento · Populi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="comun/monitor.css" />
+  <style>
+    /* el alto del lienzo sale del mapa y del ranking (lo fija el script); esto es sólo el de arranque */
+    #chart { height: 420px; }
+    @media (max-width: 640px) { #chart { height: 720px; } }
+    /* Panel: alimentos y productos de la ciudad bajo el cursor */
+    .pr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 10px; margin-top: 4px; }
+    .pr-t { grid-column: 1 / -1; font-size: .56rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 7px 0 2px; }
+    .pr-n { font-size: .68rem; line-height: 1.55; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pr-v { font: 600 .66rem/1.55 'JetBrains Mono', monospace; text-align: right; white-space: nowrap; }
+    /* Tooltip: productos de la ciudad (nombres largos se cortan con «…») */
+    .tt-sec { font: 700 9.5px/1.3 'Inter', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, .5); margin: 8px 0 0; }
+    .tt-pr .tt-n { min-width: 0; max-width: 172px; overflow: hidden; text-overflow: ellipsis; }
+    @media (max-width: 640px) { .tt-pr .tt-n { max-width: 136px; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <script src="comun/monitor.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="sec-hd">
+      <div class="sec-title"><span class="accent-bar"></span>Inflación por departamento</div>
+      <div class="sec-sub" id="sub">Inflación de la ciudad capital de cada departamento frente a la de Bolivia</div>
+    </div>
+
+    <div class="hz-bar">
+      <div class="hz-item"><span class="hz-lbl">Medida</span><div class="hz-grp" id="b-medida"></div></div>
+    </div>
+
+    <div class="kpi-grid" id="kpis"></div>
+
+    <div class="main-grid">
+      <div class="chart-card">
+        <div class="grafico" id="chart"><div class="loading"><div class="spinner"></div><span>Cargando el mapa de la inflación…</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-hd"><span class="panel-hd-t">Lectura del indicador</span><span class="panel-hd-d" id="panel-fecha"></span></div>
+        <div class="panel-body" id="panel"></div>
+      </div>
+    </div>
+
+    <div class="edu-grid" id="preguntas"></div>
+    <div class="source"><span class="source-txt" id="fuente"></span></div>
+  </div>
+
+  <script>
+  (function () {
+    var C = PM.C, NB = ' ', NAC = 'BOLIVIA';
+    // ── Escala del mapa ────────────────────────────────────────────────────────────────────────
+    // DIVERGENTE con la bisagra en Bolivia: la pregunta del mapa es «¿dónde suben los precios más que en el
+    // país?», y el país es una bisagra real (regla de la marca para las escalas). Los colores son la rampa
+    // oficial de los mapas (DIVERGING_MAPA) SIN sus dos extremos (#00323D y #8F1F22): con nueve departamentos
+    // alcanzan siete clases, y esos dos casi desaparecen sobre la tarjeta oscura (1,4 y 2,1:1). Semántica de
+    // precios: arriba de Bolivia, la mitad cálida; abajo, la turquesa; arena, «como el país».
+    // Clases: |diferencia| < h → arena; de h a 3h → 1.er paso; de 3h a 5h → 2.º; 5h o más → 3.º. El paso h sale
+    // del dato: el menor valor «redondo» que deja al departamento más alejado dentro de 7h.
+    var RAMPA = ['#005F73', '#0A9396', '#94D2BD', '#E9D8A6', '#EDA13E', '#DF5D25', '#C71E1D'];
+    var REDONDOS = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100];
+    // las cifras «en el color de la clase» tienen que leerse (≥ 3:1): el oro claro baja a su paso hondo
+    var TX_CLASE = { '#EDA13E': '#A86E00' };
+    var MED = {
+      interanual: { k: 'var_interanual', nombre: 'Interanual', larga: 'interanual', per: 'en 12 meses', top: 'interanual' },
+      mensual: { k: 'var_mensual', nombre: 'Mensual', larga: 'mensual', per: 'en el mes', top: 'mensual' },
+      acumulada: { k: 'var_acumulada', nombre: 'Acumulada', larga: 'acumulada en el año', per: 'en el año', top: 'interanual' }
+    };
+    var estado = { medida: 'interanual', k: null };
+    var D, TOP = {}, META, V = {}, K = [], CIUD = [], DEP = {}, CIU_DE = {}, ALI = {}, PESO = null, ITEMS = [];
+    var ASP = 0.9, ESC = 1, grafico, prodFecha = null, hover = null;
+
+    var pct2 = function (v) { return PM.pct(v, 2, true); };   // el INE publica la inflación con dos decimales
+    var sinTilde = function (s) { return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); };
+    var TILDES = { potosi: 'Potosí' };                           // el mapa base escribe «Potosi»
+    var nomDep = function (d) { return TILDES[sinTilde(d)] || d; };
+    var mover = function (f, n) {
+      var a = +f.slice(0, 4), m = +f.slice(5, 7) - 1 + n;
+      a += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
+      return a + '-' + (m < 9 ? '0' : '') + (m + 1);
+    };
+
+    PM.cargar(['ipc_ciudades.json', 'ipc_ciudades_top.json', 'bolivia.geojson', 'metadata.json', 'ipc_productos.json', 'ipc_ciudades_alimentos.json', 'ipc_pesos.json']).then(function (r) {
+      OFICIAL = r[6] && r[6].ciudades || null;
+      D = r[0]; META = r[3];
+      CIUD = Object.keys(D).filter(function (c) { return c !== NAC; });
+      CIUD.forEach(function (c) { DEP[c] = D[c].departamento; });
+      Object.keys(D).forEach(function (c) {
+        V[c] = {};
+        ['indice', 'var_mensual', 'var_acumulada', 'var_interanual'].forEach(function (m) {
+          var o = V[c][m] = {};
+          (D[c][m] || []).forEach(function (p) { if (p.valor != null) o[p.fecha] = p.valor; });
+        });
+      });
+      K = D[NAC].indice.map(function (p) { return p.fecha; });
+      // el mapa base nombra los departamentos como el INE (salvo las tildes): se cruzan sin tildes
+      var porDep = {};
+      CIUD.forEach(function (c) { porDep[sinTilde(DEP[c])] = c; });
+      r[2].features.forEach(function (ft) { var c = porDep[sinTilde(ft.properties.name)]; if (c) CIU_DE[ft.properties.name] = c; });
+      // los productos por ciudad no traen fecha: son del último mes publicado. Se muestran sólo si el
+      // archivo nacional de productos (mismo envío del INE) es de ese mes.
+      Object.keys(r[1]).forEach(function (c) { var t = r[1][c], k = CIUD.filter(function (x) { return sinTilde(DEP[x]) === sinTilde(t.departamento); })[0]; if (k) TOP[k] = t; });
+      prodFecha = r[4] && r[4].fecha;
+      leerAlimentos(r[5]);
+      PESO = pesos();
+      prepararMapa(r[2]);
+      echarts.registerMap('bolivia', r[2]);
+      PM.imagen = { aspecto: 760 / disposicion(760).H };   // la imagen, con las proporciones del lienzo de PC
+      PM.botonera(document.getElementById('b-medida'), [['interanual', 'Interanual'], ['mensual', 'Mensual'], ['acumulada', 'Acumulada']],
+        estado.medida, function (v) { estado.medida = v; todo(); });
+      textos(); cifras();
+      var el = document.getElementById('chart');
+      el.innerHTML = '';
+      grafico = PM.montar(el, opciones);
+      enlazar();
+      panel(ordenadas(ultima())[0].c);
+      PM.alCambiarTema(function () { cifras(); panel(estado.k); });
+      PM.preguntas(document.getElementById('preguntas'), preguntas());
+      document.getElementById('fuente').innerHTML = 'Fuente: <a href="' + META.url_ciudades + '" target="_blank" rel="noopener">INE — Índice de Precios al Consumidor por ciudades capitales y conurbaciones (base ' + META.base + ' = 100)</a> · Elaboración: Centro de Estudios POPULI · Datos al: ' + PM.fecha(ultima());
+    }).catch(function (e) { console.error(e); PM.error(document.getElementById('chart')); });
+
+    // Al cambiar de medida la opción se FUSIONA (como en el ranking del PIB): cada fila se desliza a su puesto
+    function todo() {
+      textos(); cifras();
+      var o = opciones(); o.animation = true;
+      grafico.chart.setOption(o); PM.programarAlto(); panel(estado.k);
+    }
+
+    // ── Datos ──────────────────────────────────────────────────────────────────────────────────
+    var med = function () { return MED[estado.medida]; };
+    function val(c, f, m) { var s = V[c] && V[c][(m || med()).k]; return s && s[f] != null ? s[f] : null; }
+    function ultima() { var s = D[NAC][med().k]; return s[s.length - 1].fecha; }
+    function ordenadas(f) {
+      return CIUD.map(function (c) { return { c: c, v: val(c, f) }; }).filter(function (x) { return x.v != null; })
+        .sort(function (a, b) { return b.v - a.v; });
+    }
+    // fechas que compara cada medida: el mismo mes del año anterior, el mes anterior o diciembre anterior
+    function base(f) { return estado.medida === 'interanual' ? mover(f, -12) : estado.medida === 'mensual' ? mover(f, -1) : (+f.slice(0, 4) - 1) + '-12'; }
+
+    // Peso de cada ciudad en el índice nacional. El INE no lo publica en estos archivos, pero el índice de
+    // Bolivia es un promedio ponderado EXACTO de los nueve índices de ciudad: los pesos salen de resolver
+    // nacional = Σ peso × ciudad en todos los meses (mínimos cuadrados). Si el ajuste no es exacto (residuo
+    // de más de 0,005 puntos del índice, o un peso negativo) no se usan.
+    // Las ponderaciones OFICIALES del INE (ipc_pesos.json, verificadas por el scraper contra el índice de Bolivia);
+    // si faltaran, el ajuste exacto de abajo las reproduce (coinciden al sexto decimal).
+    var OFICIAL = null;
+    function pesos() {
+      if (OFICIAL && CIUD.every(function (c) { return OFICIAL[c] > 0; })) { var o = {}; CIUD.forEach(function (c) { o[c] = OFICIAL[c] / 100; }); return o; }
+      var n = CIUD.length, A = [], b = [], i, j, r, filas = [];
+      for (i = 0; i < n; i++) { A.push([]); b.push(0); for (j = 0; j < n; j++) A[i].push(0); }
+      K.forEach(function (f) {
+        var x = CIUD.map(function (c) { return V[c].indice[f]; }), y = V[NAC].indice[f];
+        if (y == null || x.some(function (v) { return v == null; })) return;
+        filas.push([x, y]);
+        for (i = 0; i < n; i++) { b[i] += x[i] * y; for (j = 0; j < n; j++) A[i][j] += x[i] * x[j]; }
+      });
+      if (filas.length < 3 * n) return null;
+      for (i = 0; i < n; i++) {
+        var p = i;
+        for (r = i + 1; r < n; r++) if (Math.abs(A[r][i]) > Math.abs(A[p][i])) p = r;
+        var t = A[i]; A[i] = A[p]; A[p] = t; t = b[i]; b[i] = b[p]; b[p] = t;
+        for (r = i + 1; r < n; r++) { var q = A[r][i] / A[i][i]; for (j = i; j < n; j++) A[r][j] -= q * A[i][j]; b[r] -= q * b[i]; }
+      }
+      var w = [];
+      for (i = n - 1; i >= 0; i--) { var s = b[i]; for (j = i + 1; j < n; j++) s -= A[i][j] * w[j]; w[i] = s / A[i][i]; }
+      var res = 0;
+      filas.forEach(function (fy) { var s = 0; fy[0].forEach(function (x, k) { s += w[k] * x; }); res = Math.max(res, Math.abs(s - fy[1])); });
+      if (!(res < 0.005) || w.some(function (x) { return !(x > 0); })) { console.warn('Pesos de ciudad: ajuste no exacto', res); return null; }
+      var out = {}; CIUD.forEach(function (c, k) { out[c] = w[k]; }); return out;
+    }
+    // Aporte de una ciudad a la inflación de Bolivia (pp): peso × cambio de su índice ÷ nacional de la base.
+    // Los nueve aportes suman la inflación nacional (es la misma cuenta del promedio ponderado).
+    function aporte(c, f) {
+      if (!PESO) return null;
+      var b0 = base(f), I = V[c].indice, N = V[NAC].indice;
+      return I[f] == null || I[b0] == null || N[b0] == null ? null : PESO[c] * (I[f] - I[b0]) / N[b0] * 100;
+    }
+    // Alimentos y no alimentos por ciudad. ⚠ El archivo trae, por mes, varias filas con la MISMA fecha
+    // (índice, variación mensual, acumulada y a 12 meses, en ese orden): el índice es la primera de cada mes.
+    // Se comprueba contra la variación a 12 meses del último mes; si no coincide, no se usa.
+    function leerAlimentos(A) {
+      if (!A) return;
+      Object.keys(A).forEach(function (k) {
+        var x = A[k], c = CIUD.filter(function (z) { return sinTilde(DEP[z]) === sinTilde(x.departamento); })[0];
+        if (!c) return;
+        var out = {};
+        ['alimentos', 'no_alimentos'].forEach(function (g) {
+          var s = x[g]; if (!Array.isArray(s) || !s.length) return;
+          var idx = {}, filas = {};
+          s.forEach(function (p) { (filas[p.fecha] = filas[p.fecha] || []).push(p.valor); if (idx[p.fecha] == null) idx[p.fecha] = p.valor; });
+          var u = s[s.length - 1].fecha, hace = mover(u, -12), fu = filas[u];
+          if (fu.length > 1) {   // varias filas por mes: la última del mes es la variación a 12 meses
+            if (idx[hace] == null || Math.abs((idx[u] / idx[hace] - 1) * 100 - fu[fu.length - 1]) > 0.02) return;
+          }
+          out[g] = idx;
+        });
+        if (out.alimentos && out.no_alimentos) ALI[c] = out;
+      });
+    }
+    function variacion(I, f) { var b0 = base(f); return I && I[f] != null && I[b0] != null ? (I[f] / I[b0] - 1) * 100 : null; }
+
+    // ── Geometría del mapa: proporción con la escala horizontal de la latitud media ─────────────
+    function prepararMapa(geo) {
+      var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      var recorrer = function (a) { if (typeof a[0] === 'number') { x0 = Math.min(x0, a[0]); x1 = Math.max(x1, a[0]); y0 = Math.min(y0, a[1]); y1 = Math.max(y1, a[1]); } else a.forEach(recorrer); };
+      geo.features.forEach(function (f) { recorrer(f.geometry.coordinates); });
+      ESC = Math.cos((y0 + y1) / 2 * Math.PI / 180);        // un grado de longitud mide cos(latitud) de uno de latitud
+      ASP = (x1 - x0) * ESC / (y1 - y0);
+      // El rótulo de cada departamento va en el punto interior con más aire para un rótulo apaisado (no en el
+      // centroide: el de Chuquisaca caía sobre el borde con Potosí). ECharts toma ese punto de properties.cp.
+      geo.features.forEach(function (f) { var cp = puntoRotulo(f.geometry); if (cp) f.properties.cp = cp; });
+    }
+    function puntoRotulo(g) {
+      var polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+      var area = function (r) { var a = 0; for (var i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j][0] + r[i][0]) * (r[j][1] - r[i][1]); return Math.abs(a / 2); };
+      var poly = null, am = -1;
+      polys.forEach(function (p) { if (p[0] && p[0].length > 3) { var a = area(p[0]); if (a > am) { am = a; poly = p; } } });
+      if (!poly) return null;
+      // espacio de trabajo: x en km «verdaderos» (× cos lat) y además comprimida: un rótulo es ~2,4 veces más
+      // ancho que alto, así que el círculo más grande en este espacio es la elipse apaisada más grande
+      var kx = ESC / 2.4, R = poly.map(function (r) { return r.map(function (c) { return [c[0] * kx, c[1]]; }); });
+      var bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+      R[0].forEach(function (c) { bx0 = Math.min(bx0, c[0]); bx1 = Math.max(bx1, c[0]); by0 = Math.min(by0, c[1]); by1 = Math.max(by1, c[1]); });
+      var aire = function (x, y) {
+        var dentro = false, d = Infinity;
+        R.forEach(function (r) {
+          for (var i = 0, j = r.length - 1; i < r.length; j = i++) {
+            var a = r[j], b = r[i];
+            if ((b[1] > y) !== (a[1] > y) && x < (a[0] - b[0]) * (y - b[1]) / (a[1] - b[1]) + b[0]) dentro = !dentro;
+            var dx = a[0] - b[0], dy = a[1] - b[1], t = dx || dy ? Math.max(0, Math.min(1, ((x - b[0]) * dx + (y - b[1]) * dy) / (dx * dx + dy * dy))) : 0;
+            var ex = b[0] + t * dx - x, ey = b[1] + t * dy - y;
+            d = Math.min(d, ex * ex + ey * ey);
+          }
+        });
+        return (dentro ? 1 : -1) * Math.sqrt(d);
+      };
+      var mejor = [(bx0 + bx1) / 2, (by0 + by1) / 2], md = aire(mejor[0], mejor[1]), N = 22;
+      var buscar = function (x0, y0, x1, y1) {
+        for (var i = 0; i < N; i++) for (var j = 0; j < N; j++) {
+          var x = x0 + (i + 0.5) * (x1 - x0) / N, y = y0 + (j + 0.5) * (y1 - y0) / N, d = aire(x, y);
+          if (d > md) { md = d; mejor = [x, y]; }
+        }
+      };
+      buscar(bx0, by0, bx1, by1);
+      for (var k = 0, sx = (bx1 - bx0) / N, sy = (by1 - by0) / N; k < 2; k++, sx /= N / 3, sy /= N / 3)
+        buscar(mejor[0] - 1.5 * sx, mejor[1] - 1.5 * sy, mejor[0] + 1.5 * sx, mejor[1] + 1.5 * sy);
+      return [mejor[0] / kx, mejor[1]];
+    }
+    // Disposición del lienzo (sólo depende del ancho: la imagen de descarga usa la de PC). Lado a lado
+    // desde 520 px: el mapa a la izquierda con su leyenda debajo y el ranking a la derecha; en el teléfono,
+    // uno debajo del otro.
+    var LEY = 62;
+    function disposicion(W) {
+      if (W >= 520) {
+        var gap = 18, rkW = Math.round(Math.min(400, Math.max(250, W * 0.5))), colM = W - rkW - gap;
+        var mw = colM - 6, mh = mw / ASP, H = Math.ceil(Math.max(mh + 12 + LEY, 10 * 30 + 8));
+        var rkH = Math.min(H - 8, 10 * 36);
+        return { lado: true, H: H, mapa: { x: 3, y: 4, w: mw, h: mh }, ley: { x: 3, y: H - LEY, w: Math.min(mw, 330) },
+          rk: { x: colM + gap, y: Math.round((H - rkH) / 2), w: rkW, h: rkH } };
+      }
+      var w2 = Math.min(W - 28, 312), h2 = w2 / ASP, filas = 10 * 28;
+      return { lado: false, H: Math.ceil(h2 + 10 + LEY + 16 + filas + 4), mapa: { x: (W - w2) / 2, y: 4, w: w2, h: h2 },
+        ley: { x: Math.round((W - Math.min(W - 28, 320)) / 2), y: Math.round(h2 + 14), w: Math.min(W - 28, 320) },
+        rk: { x: 8, y: Math.round(h2 + 14 + LEY + 16), w: W - 18, h: filas } };
+    }
+
+    // ── Clases de color ────────────────────────────────────────────────────────────────────────
+    function paso(f) {
+      var nac = val(NAC, f), m = 0;
+      CIUD.forEach(function (c) { var v = val(c, f); if (v != null) m = Math.max(m, Math.abs(v - nac)); });
+      return REDONDOS.filter(function (h) { return 7 * h > m + 1e-9; })[0] || REDONDOS[REDONDOS.length - 1];
+    }
+    function clase(d, h) { var a = Math.abs(d), k = a < h ? 0 : a < 3 * h ? 1 : a < 5 * h ? 2 : 3; return d < 0 ? -k : k; }
+    function colorDe(c, f, h) { var v = val(c, f); return v == null ? null : RAMPA[clase(v - val(NAC, f), h) + 3]; }
+    function txClase(col) { return PM.dk() ? (col === '#005F73' ? '#94D2BD' : PM.tx(col)) : (TX_CLASE[col] || PM.tx(col)); }
+    var niebla = function () { return PM.dk() ? '#242C30' : '#DFE5EA'; };
+
+    function textos() {
+      var f = ultima(), nac = val(NAC, f), m = estado.medida;
+      document.getElementById('sub').textContent = {
+        interanual: 'Cuánto subieron los precios en 12 meses, a ' + PM.fecha(f) + ', en la ciudad capital de cada departamento (%).',
+        mensual: 'Cuánto subieron los precios en ' + PM.fecha(f) + ' frente a ' + PM.fecha(mover(f, -1)) + ', en la ciudad capital de cada departamento (%).',
+        acumulada: 'Cuánto subieron los precios de enero a ' + PM.MES_L[+f.slice(5, 7) - 1] + ' de ' + f.slice(0, 4) + ' en la ciudad capital de cada departamento (%).'
+      }[m] + ' Rojizo: más que en Bolivia (' + pct2(nac) + '); turquesa: menos. El IPC se mide sólo en esas ciudades: cada una representa a su departamento.';
+    }
+
+    function cifras() {
+      var f = ultima(), m = estado.medida, nac = val(NAC, f), fil = ordenadas(f), n = fil.length, alto = fil[0], bajo = fil[n - 1];
+      var meses = []; for (var j = 23; j >= 0; j--) meses.push(mover(f, -j));
+      var serie = function (c) { return meses.map(function (x) { return val(c, x); }); };
+      var brecha = function (x) { var v = CIUD.map(function (c) { return val(c, x); }).filter(function (z) { return z != null; }); return v.length ? Math.max.apply(null, v) - Math.min.apply(null, v) : null; };
+      var sobre = fil.filter(function (x) { return x.v > nac; }).length;
+      var ant = val(NAC, mover(f, -1)), d = ant == null ? null : nac - ant;
+      var lado = function (v) { return v > nac ? C.rojo : C.turquesa; };
+      document.getElementById('kpis').innerHTML =
+        PM.kpi({ color: nac >= 0 ? C.rojo : C.turquesa, rotulo: 'Bolivia · ' + PM.fecha(f), valor: pct2(nac),
+          delta: m === 'acumulada' ? 'ene–' + PM.fecha(f) : d == null ? m : PM.flecha(d, 0.005) + ' ' + PM.num(Math.abs(d), 2) + NB + 'pp frente a ' + PM.MES[+mover(f, -1).slice(5, 7) - 1],
+          tono: m === 'acumulada' || d == null || Math.abs(d) < 0.005 ? 'neutro' : d > 0 ? 'malo' : 'bueno', serie: serie(NAC) }) +
+        PM.kpi({ color: lado(alto.v), rotulo: 'Más alta · ' + nomDep(DEP[alto.c]), valor: pct2(alto.v), delta: PM.pp(alto.v - nac, 2) + ' frente a Bolivia',
+          tono: alto.v > nac ? 'malo' : 'bueno', serie: serie(alto.c) }) +
+        PM.kpi({ color: lado(bajo.v), rotulo: 'Más baja · ' + nomDep(DEP[bajo.c]), valor: pct2(bajo.v), delta: PM.pp(bajo.v - nac, 2) + ' frente a Bolivia',
+          tono: bajo.v > nac ? 'malo' : 'bueno', serie: serie(bajo.c) }) +
+        PM.kpi({ color: C.pizarra, rotulo: 'Brecha entre ciudades', valor: PM.num(alto.v - bajo.v, 2) + NB + 'pp', delta: sobre + ' de ' + n + ' sobre Bolivia',
+          tono: 'neutro', serie: meses.map(brecha) });
+    }
+
+    // ── Lienzo: mapa + ranking + leyenda, en un solo gráfico (así la imagen de descarga los lleva a los tres)
+    var medidor;
+    function ancho(t, fuente) { medidor = medidor || document.createElement('canvas').getContext('2d'); medidor.font = fuente; return medidor.measureText(t).width; }
+    function mezcla(a, b, t) {   // color de b sobre a con opacidad t (el fondo de la cifra en la fila resaltada)
+      var p = function (h) { var n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }, x = p(a), y = p(b);
+      return 'rgb(' + x.map(function (v, i) { return Math.round(v + (y[i] - v) * t); }).join(',') + ')';
+    }
+
+    function opciones() {
+      var el = document.getElementById('chart'), ch = echarts.getInstanceByDom(el);
+      // durante la descarga el molde dibuja fuera de pantalla con un tamaño fijo: no se toca el alto del div
+      var exp = el.style.left === '-40000px', chico = PM.pequeno(), dk = PM.dk();
+      var W = el.clientWidth || 600, L = disposicion(W);
+      if (!exp) {
+        // ⛔ ECharts no agranda el lienzo si sólo cambia el alto del div: se fija el alto y se llama resize()
+        if (Math.abs(el.clientHeight - L.H) > 1) el.style.height = L.H + 'px';
+        if (ch && Math.abs(ch.getHeight() - el.clientHeight) > 1) ch.resize();
+      }
+      var f = ultima(), nac = val(NAC, f), h = paso(f), fil = ordenadas(f);
+      var card = PM.var('--card') || '#ffffff', tinta = PM.col(C.tinta), pz = dk ? '#8A9699' : '#5C6B70';
+      var inter = PM.inter(), mono = PM.mono();
+      var puesto = {}; fil.forEach(function (x, j) { puesto[x.c] = j + 1; });
+      ITEMS = [NAC].concat(CIUD);
+
+      // mapa: cada departamento con el color de la clase de su ciudad; el rótulo, nombre y cifra
+      var fN = chico ? 10 : 10.5, fV = chico ? 10.5 : 11;
+      var datosMapa = Object.keys(CIU_DE).map(function (g) {
+        var c = CIU_DE[g], v = val(c, f), col = colorDe(c, f, h) || niebla(), t = PM.sobre(col);
+        // halo del color del propio departamento: donde el nombre no entra (Chuquisaca es más angosta que su
+        // nombre) sigue leyéndose sobre el vecino
+        var halo = { textBorderColor: col, textBorderWidth: 2.5 };
+        var rich = { n: PM.mezclar({ fontFamily: inter, fontSize: fN, fontWeight: 600, color: t, lineHeight: fN + 3 }, halo),
+          v: PM.mezclar({ fontFamily: mono, fontSize: fV, fontWeight: 700, color: t, lineHeight: fV + 3 }, halo) };
+        return { name: g, value: v, itemStyle: { areaColor: col }, emphasis: { itemStyle: { areaColor: col }, label: { rich: rich } }, label: { rich: rich } };
+      });
+      var mapa = {
+        type: 'map', id: 'mapa', name: 'Inflación', map: 'bolivia', roam: false, selectedMode: false, z: 2,
+        aspectScale: ESC, layoutCenter: [L.mapa.x + L.mapa.w / 2, L.mapa.y + L.mapa.h / 2], layoutSize: ASP < 1 ? L.mapa.h : L.mapa.w,
+        itemStyle: { areaColor: niebla(), borderColor: card, borderWidth: 1 },
+        label: { show: true, formatter: function (p) { var c = CIU_DE[p.name]; return '{n|' + nomDep(p.name) + '}\n{v|' + (c ? pct2(val(c, f)) : '—') + '}'; } },
+        emphasis: { label: { show: true }, itemStyle: { borderColor: tinta, borderWidth: 1.5 } },
+        select: { disabled: true },
+        data: datosMapa
+      };
+
+      // ranking (el de las actividades del PIB): puesto y nombre en columna propia, barras desde el cero en
+      // el color de la clase del mapa (el ranking es también la clave del mapa), cifra al extremo con fondo de
+      // tarjeta, Bolivia arriba como fila ancla y su raya punteada por detrás de las barras
+      var R = L.rk, fNom = chico ? 11 : 12, fCif = chico ? 10.5 : 11.5, fRk = chico ? 9.5 : 10;
+      var nombre = function (c) { return c === NAC ? 'Bolivia' : nomDep(DEP[c]); };
+      var rankW = Math.ceil(ancho('9', '500 ' + fRk + 'px ' + mono)) + 8;
+      var nameW = Math.ceil(Math.max.apply(null, ITEMS.map(function (c) { return ancho(nombre(c), '700 ' + fNom + 'px ' + inter); })));
+      var plotL = R.x + rankW + nameW + 12, plotW = R.w - rankW - nameW - 12;
+      var vals = ITEMS.map(function (c) { return val(c, f); }).filter(function (v) { return v != null; });
+      var lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
+      var PAD = 3, GAP = 4, cifra = function (c) { return pct2(val(c, f)); }, lw = function (c) { return ancho(cifra(c), '600 ' + fCif + 'px ' + mono) + 2 * PAD; };
+      var span = (hi - lo) || 1, k = plotW / span, pxL = 4, pxR = 4;
+      for (var it = 0; it < 5; it++) {
+        pxL = 4; pxR = 4;
+        ITEMS.forEach(function (c) { var v = val(c, f); if (v == null) return; if (v < 0) pxL = Math.max(pxL, GAP + lw(c) - (v - lo) * k); else pxR = Math.max(pxR, GAP + lw(c) - (hi - v) * k); });
+        k = (plotW - pxL - pxR) / span;
+      }
+      var X = function (v) { return plotL + pxL + (v - lo) * k; }, cero = X(0), xn = X(nac);
+      var lineaCero = dk ? 'rgba(226,232,240,.55)' : 'rgba(0,18,25,.5)', filete = dk ? '#2A3A50' : '#E2DDD3';
+      var sombra = mezcla(card.length === 7 ? card : '#FFFFFF', dk ? '#E2E8F0' : '#001219', dk ? 0.07 : 0.045);
+      var colB = function (c) { return c === NAC ? tinta : colorDe(c, f, h) || niebla(); };
+      var colT = function (c) { return c === NAC ? tinta : txClase(colorDe(c, f, h) || '#8A9699'); };
+      var ranking = {
+        type: 'custom', id: 'ranking', name: med().nombre, coordinateSystem: 'cartesian2d', encode: { x: 0, y: 1, tooltip: 0 },
+        data: ITEMS.map(function (c) { return { id: c, value: [val(c, f), c === NAC ? 0 : puesto[c]] }; }),
+        renderItem: function (params, api) {
+          var c = ITEMS[params.dataIndex], cs = params.coordSys, cy = api.coord([0, api.value(1)])[1], rh = api.size([0, 1])[1];
+          var v = val(c, f); if (v == null) return null;
+          var bh = Math.round(Math.min(chico ? 16 : 19, rh * 0.58)), x1 = X(v), neg = v < 0, esN = c === NAC;
+          var hijos = [
+            // la fila entera es la zona del cursor: tenue al pasar
+            { type: 'rect', z2: 0, shape: { x: cs.x, y: -rh / 2, width: cs.width, height: rh }, style: { fill: 'rgba(0,0,0,0)' }, emphasis: { style: { fill: sombra } } },
+            { type: 'rect', z2: 2, shape: { x: Math.min(cero, x1), y: -bh / 2, width: Math.max(1, Math.abs(x1 - cero)), height: bh }, style: { fill: colB(c) } },
+            { type: 'text', z2: 5, x: neg ? x1 - GAP : x1 + GAP, y: 0, transition: ['x'],
+              style: { text: cifra(c), fontFamily: mono, fontSize: fCif, fontWeight: 600, fill: colT(c), align: neg ? 'right' : 'left', verticalAlign: 'middle', backgroundColor: card, padding: [1, PAD] },
+              emphasis: { style: { backgroundColor: sombra } } },
+            { type: 'text', z2: 5, x: plotL - 12, y: 0,
+              style: { text: nombre(c), fontFamily: inter, fontSize: fNom, fontWeight: esN ? 700 : 500, fill: tinta, align: 'right', verticalAlign: 'middle' },
+              emphasis: { style: { fontWeight: 700 } } }
+          ];
+          if (!esN) hijos.push({ type: 'text', z2: 5, x: cs.x, y: 0,
+            style: { text: String(puesto[c]), fontFamily: mono, fontSize: fRk, fontWeight: 500, fill: pz, align: 'left', verticalAlign: 'middle' } });
+          else {
+            var abajo = rh / 2, fin = cs.y + cs.height - cy;
+            hijos.push({ type: 'line', z2: 1, silent: true, shape: { x1: cs.x, y1: abajo, x2: cs.x + cs.width, y2: abajo }, style: { stroke: filete, lineWidth: 1 } });
+            hijos.push({ type: 'line', z2: 1, silent: true, shape: { x1: cero, y1: cs.y + 2 - cy, x2: cero, y2: fin - 2 }, style: { stroke: lineaCero, lineWidth: 1 } });
+            hijos.push({ type: 'line', z2: 1, silent: true, shape: { x1: xn, y1: abajo + 3, x2: xn, y2: fin - 2 }, style: { stroke: pz, lineWidth: 1.25, lineDash: [4, 3], opacity: 0.8 } });
+          }
+          return { type: 'group', y: cy, transition: ['y'], children: hijos };
+        }
+      };
+
+      return {
+        animationDurationUpdate: 650, animationEasingUpdate: 'cubicInOut',
+        grid: { left: R.x, top: R.y, width: R.w, height: R.h, containLabel: false },
+        xAxis: { type: 'value', min: lo, max: hi, show: false },
+        yAxis: { type: 'category', inverse: true, show: false, data: ITEMS.map(function (c, j) { return String(j); }) },
+        tooltip: PM.tooltip(tip, chico ? { trigger: 'item', position: cerca } : { trigger: 'item' }),
+        graphic: { elements: leyenda(L.ley, h, nac, chico) },
+        series: [mapa, ranking]
+      };
+    }
+
+    // Leyenda de la escala, dentro del lienzo (la imagen de descarga la lleva): título, siete casillas
+    // seguidas, los cortes en pp y el sentido. Cada elemento lleva id: al cambiar de medida se fusiona.
+    function leyenda(B, h, nac, chico) {
+      var pz = PM.dk() ? '#8A9699' : '#5C6B70', tinta = PM.col(C.tinta), inter = PM.inter(), mono = PM.mono();
+      var sw = B.w / 7, y = B.y, els = [], dec = PM.tick(h).indexOf(',') < 0 ? 0 : PM.tick(h).split(',')[1].length;
+      els.push({ id: 'ley-t', type: 'text', silent: true, x: B.x, y: y, style: { text: 'Diferencia con Bolivia (' + pct2(nac) + '), en pp', font: '600 ' + (chico ? 10 : 10.5) + 'px ' + inter, fill: tinta, align: 'left', verticalAlign: 'top' } });
+      RAMPA.forEach(function (col, i) {
+        var a = Math.round(B.x + i * sw), b = Math.round(B.x + (i + 1) * sw);
+        els.push({ id: 'ley-c' + i, type: 'rect', silent: true, shape: { x: a, y: y + 19, width: b - a, height: 10 }, style: { fill: col } });
+      });
+      [-5, -3, -1, 1, 3, 5].forEach(function (m, i) {
+        var v = m * h;
+        els.push({ id: 'ley-v' + i, type: 'text', silent: true, x: Math.round(B.x + (i + 1) * sw), y: y + 33,
+          style: { text: (v > 0 ? '+' : '') + PM.num(v, dec), font: '500 ' + (chico ? 9.5 : 10) + 'px ' + mono, fill: pz, align: 'center', verticalAlign: 'top' } });
+      });
+      var fS = '500 ' + (chico ? 9.5 : 10) + 'px ' + inter;
+      els.push({ id: 'ley-a', type: 'text', silent: true, x: B.x, y: y + 48, style: { text: '← menos inflación', font: fS, fill: pz, align: 'left', verticalAlign: 'top' } });
+      els.push({ id: 'ley-b', type: 'text', silent: true, x: B.x + B.w, y: y + 48, style: { text: 'más inflación →', font: fS, fill: pz, align: 'right', verticalAlign: 'top' } });
+      return els;
+    }
+
+    // ── Cursor: el departamento en el mapa y su fila en el ranking se marcan juntos ──────────────
+    function enlazar() {
+      var ch = grafico.chart;
+      var soltar = function () {
+        if (!hover) return;
+        ch.dispatchAction({ type: 'downplay', seriesId: 'mapa', name: hover.g });
+        ch.dispatchAction({ type: 'downplay', seriesId: 'ranking', dataIndex: hover.j });
+        hover = null;
+      };
+      ch.on('mouseover', function (p) {
+        var c = p.seriesId === 'mapa' ? CIU_DE[p.name] : p.seriesId === 'ranking' ? ITEMS[p.dataIndex] : null;
+        if (!c) return;
+        var g = Object.keys(CIU_DE).filter(function (x) { return CIU_DE[x] === c; })[0], j = ITEMS.indexOf(c);
+        if (hover && hover.c === c) return;
+        soltar();
+        hover = { c: c, g: g, j: j };
+        if (p.seriesId === 'mapa') ch.dispatchAction({ type: 'highlight', seriesId: 'ranking', dataIndex: j });
+        else if (g) ch.dispatchAction({ type: 'highlight', seriesId: 'mapa', name: g });
+      });
+      ch.on('mouseout', soltar);
+      ch.on('globalout', soltar);
+      // un toque fuera del lienzo cierra la ficha
+      document.addEventListener('touchstart', function (e) {
+        if (!document.getElementById('chart').contains(e.target)) { ch.dispatchAction({ type: 'hideTip' }); soltar(); }
+      }, { passive: true });
+    }
+    // En el teléfono el lienzo es más alto que la pantalla: la ficha va justo encima del dedo (o debajo, arriba de todo)
+    function cerca(pt, params, dom, rect, size) {
+      var w = size.contentSize[0], hh = size.contentSize[1], Wv = size.viewSize[0];
+      var y = pt[1] - hh - 18 >= 0 ? pt[1] - hh - 18 : pt[1] + 20;
+      return [Math.min(Math.max(pt[0] - w / 2, 4), Math.max(4, Wv - w - 4)), y];
+    }
+
+    // ── Productos que más subieron y bajaron en la ciudad (último mes publicado) ─────────────────
+    function productos(c) {
+      var t = TOP[c], f = ultima();
+      if (!t || prodFecha !== f) return null;
+      var m = med().top, lista = t[m];
+      if (!lista) return null;
+      var arriba = lista.subidas || [], abajo = lista.bajadas || [];
+      return {
+        per: m === 'mensual' ? 'en el mes' : 'en 12 meses',
+        sub: arriba, baj: abajo,
+        tSub: arriba.length && arriba[0].v < 0 ? 'Menos bajaron' : 'Más subieron',
+        tBaj: abajo.length && abajo.every(function (x) { return x.v >= 0; }) ? 'Menos subieron' : 'Más bajaron'
+      };
+    }
+
+    function tip(p) {
+      var c = p.seriesId === 'mapa' ? CIU_DE[p.name] : p.seriesId === 'ranking' ? ITEMS[p.dataIndex] : null;
+      if (!c) return '';
+      panel(c);
+      var f = ultima(), nac = val(NAC, f), fil = ordenadas(f);
+      if (c === NAC) {
+        return PM.ttTitulo('Bolivia · ' + PM.fecha(f), 'Inflación ' + med().larga) + PM.ttFila(C.tinta, 'Bolivia', pct2(nac), 'area') +
+          PM.ttTotal('Ciudades sobre Bolivia', fil.filter(function (x) { return x.v > nac; }).length + ' de ' + fil.length);
+      }
+      var v = val(c, f), col = colorDe(c, f, paso(f)), chico = PM.pequeno();
+      var h = PM.ttTitulo(nomDep(DEP[c]) + ' · ' + PM.fecha(f), c + ' · inflación ' + med().larga) +
+        PM.ttFila(col, nomDep(DEP[c]), pct2(v), 'area') + PM.ttFila(C.tinta, 'Bolivia', pct2(nac), 'area') + PM.ttTotal('Diferencia', PM.pp(v - nac, 2));
+      var pr = productos(c);
+      if (pr) {
+        var fila = function (x) {
+          return '<div class="tt-f tt-pr"><span class="tt-n">' + x.p + '</span><span class="tt-v" style="color:' + (x.v > 0 ? '#E8706B' : x.v < 0 ? '#94D2BD' : '#fff') + '">' + pct2(x.v) + '</span></div>';
+        };
+        var n = chico ? 3 : 3;
+        h += '<div class="tt-sec">' + pr.tSub + ' ' + pr.per + '</div>' + pr.sub.slice(0, n).map(fila).join('') +
+          '<div class="tt-sec">' + pr.tBaj + '</div>' + pr.baj.slice(0, n).map(fila).join('');
+      }
+      return h;
+    }
+
+    // ── Panel de lectura: la ciudad bajo el cursor ───────────────────────────────────────────────
+    function panel(c) {
+      if (!D || !c) return;
+      estado.k = c;
+      var f = ultima(), m = estado.medida, nac = val(NAC, f), fil = ordenadas(f), n = fil.length;
+      var lado = function (v) { return v > nac ? C.rojo : C.turquesa; };
+      document.getElementById('panel-fecha').textContent = PM.fecha(f);
+      var html = PM.pb(nac >= 0 ? C.rojo : C.turquesa, 'Bolivia', pct2(nac), 'Inflación ' + med().larga + ' de ' + PM.fecha(f) + (PESO ? ': el promedio ponderado de las ' + n + ' ciudades.' : '.'));
+      if (c !== NAC) {
+        var v = val(c, f), r = fil.map(function (x) { return x.c; }).indexOf(c) + 1;
+        var antF = m === 'mensual' ? mover(f, -1) : mover(f, -12), ant = val(c, antF), ap = aporte(c, f);
+        var desc = (c !== nomDep(DEP[c]) ? 'Medida en <strong>' + c + '</strong>. ' : '') + 'Puesto <strong>' + r + ' de ' + n + '</strong>; diferencia con Bolivia: <strong>' + PM.pp(v - nac, 2) + '</strong>.' +
+          (PESO && ap != null ? ' Pesa ' + PM.pct(PESO[c] * 100, 1) + ' del índice nacional y aportó ' + PM.pp(ap, 2) + ' de los ' + pct2(nac) + '.' : '') +
+          (ant != null ? ' En ' + PM.fecha(antF) + ': ' + pct2(ant) + '.' : '');
+        var extra = '';
+        var A = ALI[c];
+        if (A) {
+          var va = variacion(A.alimentos, f), vn = variacion(A.no_alimentos, f);
+          if (va != null && vn != null) extra += '<p class="pb-desc">Alimentos ' + PM.dt(va > 0 ? C.rojo : C.turquesa, pct2(va)) + ' · no alimentos ' + PM.dt(vn > 0 ? C.rojo : C.turquesa, pct2(vn)) + '.</p>';
+        }
+        var pr = productos(c);
+        if (pr) {
+          var lista = function (t, xs) {
+            return '<span class="pr-t">' + t + '</span>' + xs.map(function (x) {
+              return '<span class="pr-n" title="' + x.p + '">' + x.p + '</span><span class="pr-v" style="color:' + PM.tx(x.v > 0 ? C.rojo : C.turquesa) + '">' + pct2(x.v) + '</span>';
+            }).join('');
+          };
+          extra += '<div class="pr">' + lista(pr.tSub + ' ' + pr.per, pr.sub) + lista(pr.tBaj, pr.baj) + '</div>';
+        }
+        html += PM.pb(lado(v), nomDep(DEP[c]), pct2(v), desc).replace(/<\/div>$/, extra + '</div>');
+      }
+      document.getElementById('panel').innerHTML = html + PM.ctx(lectura(f));
+    }
+
+    // Umbrales de la lectura: la brecha entre la ciudad más alta y la más baja frente a la inflación del país.
+    // Si la brecha es igual o mayor que la inflación nacional, «muy dispar»; desde la mitad, «diferencias
+    // marcadas»; por debajo, «pareja».
+    var DISPAR = 1, MARCADA = 0.5;
+    function brechaDe(f) {
+      var v = CIUD.map(function (c) { return val(c, f); }).filter(function (z) { return z != null; });
+      return v.length ? Math.max.apply(null, v) - Math.min.apply(null, v) : null;
+    }
+    function lectura(f) {
+      var nac = val(NAC, f), fil = ordenadas(f), n = fil.length, a = fil[0], z = fil[n - 1], br = a.v - z.v;
+      var rel = br / Math.max(Math.abs(nac), 0.05), t;
+      var par = 'entre <strong>' + nomDep(DEP[a.c]) + '</strong> (' + pct2(a.v) + ') y <strong>' + nomDep(DEP[z.c]) + '</strong> (' + pct2(z.v) + ') hay ' + PM.num(br, 2) + NB + 'pp';
+      if (rel >= DISPAR) t = 'La inflación es <strong>muy dispar</strong>: ' + par + ', más que la inflación de Bolivia (' + pct2(nac) + ').';
+      else if (rel >= MARCADA) t = 'Hay <strong>diferencias marcadas</strong>: ' + par + ', al menos la mitad de la inflación de Bolivia (' + pct2(nac) + ').';
+      else t = 'La inflación es <strong>pareja</strong>: ' + par + ', menos de la mitad de la inflación de Bolivia (' + pct2(nac) + ').';
+      // ¿desde cuándo no había una brecha así? (por fecha, hacia atrás)
+      var serie = D[NAC][med().k].map(function (p) { return p.fecha; }).filter(function (x) { return x < f; });
+      var mayor = null; for (var i = serie.length - 1; i >= 0; i--) { var b = brechaDe(serie[i]); if (b != null && b >= br) { mayor = serie[i]; break; } }
+      if (!mayor) t += ' Es la mayor brecha de la serie (desde ' + PM.fecha(serie[0] || f) + ').';
+      else if (mover(mayor, 12) <= f) t += ' Es la mayor brecha desde ' + PM.fecha(mayor) + '.';
+      var sobre = fil.filter(function (x) { return x.v > nac; });
+      t += ' <strong>' + sobre.length + ' de ' + n + '</strong> departamentos están sobre Bolivia.';
+      if (PESO) {
+        var g = CIUD.slice().sort(function (x, y) { return PESO[y] - PESO[x]; }).slice(0, 3);
+        var pw = g.reduce(function (s, c) { return s + PESO[c]; }, 0), ap = g.reduce(function (s, c) { return s + (aporte(c, f) || 0); }, 0);
+        t += ' Las tres ciudades que más pesan en el índice (' + g.map(function (c) { return nomDep(DEP[c]); }).join(', ').replace(/, ([^,]*)$/, ' y $1') + ', ' + PM.pct(pw * 100, 1) +
+          ') aportaron ' + PM.pp(ap, 2) + ' de los ' + pct2(nac) + '.';
+      }
+      return t;
+    }
+
+    // ── Descargas: la leyenda va dentro del lienzo; la tabla, los nueve departamentos y Bolivia ──
+    PM.leyendaImagen = function () { return []; };
+    PM.tablaDatos = function () {
+      var f = ultima(), nac = val(NAC, f);
+      var fila = function (c) {
+        return [c === NAC ? 'Bolivia' : nomDep(DEP[c]), c === NAC ? 'Nacional' : c, f, val(c, f, MED.interanual), val(c, f, MED.mensual), val(c, f, MED.acumulada),
+          c === NAC ? null : val(c, f) - nac, PESO && c !== NAC ? PESO[c] * 100 : null, c === NAC ? null : aporte(c, f)];
+      };
+      return { cols: ['Departamento', 'Ciudad', 'Mes', 'Interanual (%)', 'Mensual (%)', 'Acumulada en el año (%)',
+        'Diferencia con Bolivia (' + med().larga + ', pp)', 'Peso en el índice nacional (%, INE)', 'Aporte a Bolivia (' + med().larga + ', pp)'],
+        filas: ordenadas(f).map(function (x) { return fila(x.c); }).concat([fila(NAC)]) };
+    };
+
+    function preguntas() {
+      var guarda = estado.medida; estado.medida = 'interanual';
+      var f = ultima(), nac = val(NAC, f), fil = ordenadas(f), n = fil.length, a = fil[0], z = fil[n - 1], h = paso(f);
+      var lista = CIUD.map(function (c) {
+        var d = nomDep(DEP[c]);
+        return sinTilde(c).indexOf(sinTilde(d)) >= 0 ? c : c + ' (' + d + ')';
+      });
+      var ciudades = lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1];
+      var idx = CIUD.map(function (c) { return { c: c, v: V[c].indice[K[K.length - 1]] }; }).sort(function (x, y) { return y.v - x.v; });
+      var out = [
+        ['¿Qué ciudades mide el IPC?', 'El INE mide los precios del IPC en <strong>' + n + ' ciudades capitales y conurbaciones</strong>: ' + ciudades + '. ' +
+          'Esa es toda su cobertura: el resto del país (otras ciudades, el área rural) no entra en el índice. Por eso cada departamento del mapa lleva el dato de su ciudad capital.'],
+        ['¿Cómo se lee el mapa?', 'El color de cada departamento es la <strong>diferencia</strong> entre la inflación de su ciudad y la de Bolivia. Arena: a menos de ' + PM.tick(h) + NB + 'pp del país; ' +
+          'rojizo: por encima; turquesa: por debajo; cada paso de color suma ' + PM.tick(2 * h) + NB + 'pp (en la medida interanual; el paso se ajusta a cada medida y la leyenda lo dice). ' +
+          'El ranking ordena las mismas cifras, con Bolivia arriba y su raya punteada por detrás de las barras.']
+      ];
+      if (PESO) {
+        var g = CIUD.slice().sort(function (x, y) { return PESO[y] - PESO[x]; });
+        var resto = g.slice(3).reduce(function (s, c) { return s + PESO[c]; }, 0);
+        out.push(['¿Por qué Bolivia no es el promedio de las nueve?', 'Porque el índice nacional pondera a cada ciudad por su peso en el gasto de consumo. Los pesos son las ponderaciones oficiales del INE (el índice de Bolivia es el promedio ponderado exacto de las nueve): ' +
+          g.slice(0, 3).map(function (c) { return nomDep(DEP[c]) + ' ' + PM.pct(PESO[c] * 100, 1); }).join(', ') + '; las otras seis suman ' + PM.pct(resto * 100, 1) + '. ' +
+          '<p>Por eso una ciudad chica mueve poco al país: ' + nomDep(DEP[a.c]) + ', con la inflación interanual más alta (' + pct2(a.v) + '), aportó ' + PM.pp(aporte(a.c, f), 2) + ' de los ' + pct2(nac) + ' de ' + PM.fecha(f) + '.</p>']);
+      }
+      var A = ALI[a.c], B = ALI[z.c], dif = '';
+      if (A && B) {
+        var aa = variacion(A.alimentos, f), an = variacion(A.no_alimentos, f), za = variacion(B.alimentos, f), zn = variacion(B.no_alimentos, f);
+        if ([aa, an, za, zn].every(function (x) { return x != null; }))
+          dif = ' Entre ' + nomDep(DEP[a.c]) + ' y ' + nomDep(DEP[z.c]) + ', a ' + PM.fecha(f) + ', la distancia es de ' + PM.num(aa - za, 2) + NB + 'pp en alimentos y de ' + PM.num(an - zn, 2) + NB + 'pp en no alimentos.';
+      }
+      out.push(['¿Por qué difiere la inflación entre ciudades?', 'Cada ciudad tiene su propia canasta (lo que gastan sus hogares) y sus propios precios: el mismo producto no sube igual en todas. ' +
+        'Estos datos dicen <strong>dónde</strong> subieron más los precios, no por qué.' + dif +
+        ' <p>El detalle de cada departamento (al pasar el cursor) separa alimentos y no alimentos y nombra los productos que más subieron y bajaron en su ciudad: eso muestra dónde se registró la diferencia, no su causa.</p>']);
+      out.push(['Interanual, mensual y acumulada', '<strong>Interanual</strong>: el mes frente al mismo mes del año anterior. <strong>Mensual</strong>: frente al mes anterior. <strong>Acumulada</strong>: frente a diciembre del año anterior.']);
+      out.push(['¿Más inflación quiere decir precios más altos?', 'No. El IPC de cada ciudad mide cuánto <strong>cambian</strong> sus precios, no cuánto cuestan: cada ciudad tiene su propio índice con base ' + META.base + ' = 100. ' +
+        'A ' + PM.fecha(K[K.length - 1]) + ' el de ' + nomDep(DEP[idx[0].c]) + ' está en ' + PM.num(idx[0].v, 1) + ' y el de ' + nomDep(DEP[idx[idx.length - 1].c]) + ' en ' + PM.num(idx[idx.length - 1].v, 1) +
+        ': en ' + nomDep(DEP[idx[0].c]) + ' los precios subieron más desde ' + META.base + ', no que vivir ahí sea más caro.']);
+      estado.medida = guarda;
+      return out;
+    }
+  })();
+  </script>
+</body>
+</html>

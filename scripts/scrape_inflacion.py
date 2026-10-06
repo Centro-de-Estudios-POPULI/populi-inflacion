@@ -14,7 +14,8 @@ Salidas:
   data/ipc_productos.json      - productos con mayor/menor variacion + ponderaciones
   data/ipc_productos_hist.json - series historicas de top productos
   data/ipc_ciudades_top.json   - top 5 subidas/bajadas por ciudad (para mapa)
-  data/ipc_nucleo.json         - inflacion nucleo (exc. alimentos y transporte)
+  data/ipc_pesos.json          - ponderacion de cada division (para la contribucion a la inflacion)
+  data/ipc_nucleo.json         - inflacion nucleo: IPC sin alimentos ni energia (ponderado por producto)
   data/ipc_transables.json     - IPC transables vs no transables (CEPALSTAT)
   data/ipc_regional.json       - IPC comparativo regional (CEPALSTAT)
   data/metadata.json           - fecha actualizacion, fuente, cobertura
@@ -220,7 +221,10 @@ def leer_tipo_A(ws, fila_anios=5, fila_datos_inicio=7, col_nombre=1, col_datos_i
             except (ValueError, TypeError):
                 pass
 
-    serie = []
+    # Los Excel de alimentos y no alimentos traen en UNA hoja cuatro bloques de enero a diciembre: índice,
+    # variación mensual, acumulada y a 12 meses, en ese orden. Sólo vale el primero (el índice): sin este
+    # control la serie salía con cuatro filas por mes y las páginas tenían que adivinar cuál era cuál.
+    serie, vistas, bloques = [], set(), 1
     for fila in range(fila_datos_inicio, ws.max_row + 1):
         mes_raw = ws.cell(row=fila, column=col_nombre).value
         if mes_raw is None:
@@ -233,11 +237,15 @@ def leer_tipo_A(ws, fila_anios=5, fila_datos_inicio=7, col_nombre=1, col_datos_i
         for col_anio, anio in anios:
             val = safe_float(ws.cell(row=fila, column=col_anio).value)
             if val is not None:
-                serie.append({
-                    "fecha": f"{anio}-{mes_num:02d}",
-                    "valor": round(val, 6)
-                })
+                fecha = f"{anio}-{mes_num:02d}"
+                if fecha in vistas:
+                    bloques += mes_num == 1 and col_anio == anios[0][0]
+                    continue
+                vistas.add(fecha)
+                serie.append({"fecha": fecha, "valor": round(val, 6)})
 
+    if bloques > 1:
+        print(f"  [i] hoja '{ws.title}': {bloques} bloques de meses; se toma el primero (índice)")
     serie.sort(key=lambda x: x["fecha"])
     return serie
 
@@ -530,11 +538,16 @@ def procesar_productos(contenido_prod: bytes, contenido_pond: bytes) -> dict:
             if len(serie) < 13:
                 continue
             desc = nombre.split(". ", 1)[-1] if ". " in nombre else nombre
+            # el índice general no es un producto (antes se contaba: «398»). Sólo ESE rótulo: «Consulta médica
+            # general» sí es un producto (un filtro por «GENERAL» lo dejaba afuera).
+            if desc.strip().upper().lstrip("Í").startswith(("NDICE GENERAL", "INDICE GENERAL")):
+                continue
             ultimo = serie[-1]["valor"]
-            hace_12 = serie[-13]["valor"] if len(serie) >= 13 else serie[0]["valor"]
-            var_12 = ((ultimo / hace_12) - 1) * 100 if hace_12 else 0
-            prev_mes = serie[-2]["valor"]
-            var_mes = ((ultimo / prev_mes) - 1) * 100 if prev_mes else 0
+            hace_12, prev_mes = hace_meses(serie, 12), hace_meses(serie, 1)
+            if not hace_12 or not prev_mes:
+                continue
+            var_12 = ((ultimo / hace_12) - 1) * 100
+            var_mes = ((ultimo / prev_mes) - 1) * 100
             pond = ponderaciones.get(desc.strip(), None)
             productos.append({
                 "producto": desc.strip(),
@@ -542,8 +555,24 @@ def procesar_productos(contenido_prod: bytes, contenido_pond: bytes) -> dict:
                 "var_mensual": round(var_mes, 4),
                 "fecha": serie[-1]["fecha"],
                 "ponderacion": pond,
+                "_i": (ultimo, hace_12, prev_mes),
             })
         break
+
+    # APORTE de cada producto a la variación del IPC (índice de Laspeyres de base fija: Σ peso·índice / Σ peso
+    # reproduce el general del INE exacto). Aporte = peso × (I_t − I_antes) / Σ peso × I_antes, en pp: los 397
+    # suman la variación del general. Un aporte dice dónde se registró la suba, no qué la causó.
+    con_peso = [x for x in productos if x["ponderacion"]]
+    den_i = sum(x["ponderacion"] * x["_i"][1] for x in con_peso)
+    den_m = sum(x["ponderacion"] * x["_i"][2] for x in con_peso)
+    for x in productos:
+        w = x["ponderacion"]
+        x["aporte_interanual"] = round(w * (x["_i"][0] - x["_i"][1]) / den_i * 100, 5) if w and den_i else None
+        x["aporte_mensual"] = round(w * (x["_i"][0] - x["_i"][2]) / den_m * 100, 5) if w and den_m else None
+    for x in productos:
+        x.pop("_i", None)
+    suma_i = sum(x["aporte_interanual"] or 0 for x in productos)
+    print(f"  [OK] aportes por producto: {len(con_peso)} con ponderación, suman {suma_i:.3f} pp (interanual)")
 
     fecha = productos[0]["fecha"] if productos else None
 
@@ -555,10 +584,18 @@ def procesar_productos(contenido_prod: bytes, contenido_pond: bytes) -> dict:
             "total_productos": len(ordenado),
         }
 
+    def _aporte(metric: str) -> dict:
+        con = [x for x in productos if x.get(metric) is not None]
+        ordenado = sorted(con, key=lambda x: x[metric], reverse=True)
+        return {"suman": ordenado[:10], "restan": list(reversed(ordenado[-10:])), "total_pp": round(sum(x[metric] for x in con), 4)}
+
     return {
         "fecha": fecha,
         "interanual": _top("var_interanual"),
         "mensual": _top("var_mensual"),
+        # lo que más MOVIÓ el índice (pp), no lo que más subió (%): un producto que pesa mucho y sube poco
+        # puede aportar más que uno que se dispara y casi no pesa
+        "aporte": {"interanual": _aporte("aporte_interanual"), "mensual": _aporte("aporte_mensual")},
     }
 
 
@@ -588,8 +625,8 @@ def procesar_ciudades_alimentos(contenido_ali: bytes, contenido_no_ali: bytes) -
     return resultado
 
 
-def procesar_productos_historico(contenido_prod: bytes) -> dict:
-    """Series historicas de los top 10 productos que mas subieron y bajaron."""
+def procesar_productos_historico(contenido_prod: bytes, extra: list | None = None) -> dict:
+    """Series historicas de los top 10 productos que mas subieron y bajaron, y de los `extra` (los de mayor aporte)."""
     wb = abrir_excel(contenido_prod)
 
     all_prods = {}
@@ -610,10 +647,11 @@ def procesar_productos_historico(contenido_prod: bytes) -> dict:
         if len(serie) < 13:
             continue
         ultimo = serie[-1]["valor"]
-        hace_12 = serie[-13]["valor"]
-        prev_mes = serie[-2]["valor"]
-        var_12 = ((ultimo / hace_12) - 1) * 100 if hace_12 else 0
-        var_mes = ((ultimo / prev_mes) - 1) * 100 if prev_mes else 0
+        hace_12, prev_mes = hace_meses(serie, 12), hace_meses(serie, 1)
+        if not hace_12 or not prev_mes:
+            continue
+        var_12 = ((ultimo / hace_12) - 1) * 100
+        var_mes = ((ultimo / prev_mes) - 1) * 100
         ranked_i.append((nombre, var_12))
         ranked_m.append((nombre, var_mes))
 
@@ -625,6 +663,7 @@ def procesar_productos_historico(contenido_prod: bytes) -> dict:
         [r[0] for r in ranked_m[:10]] + [r[0] for r in ranked_m[-10:]]
     )
 
+    top_names += list(extra or [])
     resultado = {}
     for nombre in top_names:
         if nombre in all_prods and nombre not in resultado:
@@ -657,10 +696,11 @@ def procesar_ciudades_productos_top(contenido: bytes) -> dict:
             if "GENERAL" in desc.upper() or "INDICE" in desc.upper():
                 continue
             ultimo = serie[-1]["valor"]
-            hace_12 = serie[-13]["valor"]
-            prev_mes = serie[-2]["valor"]
-            var_12 = ((ultimo / hace_12) - 1) * 100 if hace_12 else 0
-            var_mes = ((ultimo / prev_mes) - 1) * 100 if prev_mes else 0
+            hace_12, prev_mes = hace_meses(serie, 12), hace_meses(serie, 1)
+            if not hace_12 or not prev_mes:
+                continue
+            var_12 = ((ultimo / hace_12) - 1) * 100
+            var_mes = ((ultimo / prev_mes) - 1) * 100
             prods.append({"p": desc.strip(), "i": round(var_12, 2), "m": round(var_mes, 2)})
 
         def _topbot(metric: str) -> dict:
@@ -672,6 +712,7 @@ def procesar_ciudades_productos_top(contenido: bytes) -> dict:
 
         resultado[ciudad] = {
             "departamento": depto_de_ciudad(ciudad),
+            "fecha": max((sr[-1]["fecha"] for sr in datos.values() if sr), default=None),   # el mes de estos rankings
             "interanual": _topbot("i"),
             "mensual": _topbot("m"),
         }
@@ -679,18 +720,115 @@ def procesar_ciudades_productos_top(contenido: bytes) -> dict:
     return resultado
 
 
-ENERGIA_CODIGOS = {"04510101", "04520101", "04520201", "04520202"}
+# Definición ESTÁNDAR del núcleo (decisión de Carlos, 2026-10-05): IPC sin alimentos ni energía.
+# - Alimentos: división 01 (alimentos y bebidas no alcohólicas).
+# - Energía, por la clasificación COICOP (no por lista a mano): 04.5 electricidad, gas y otros
+#   combustibles del hogar + 07.2.2 combustibles y lubricantes para vehículos. Con la canasta 2016
+#   son 6 productos y 4,29 % del IPC: electricidad, gas por red, GLP, garrafa, gasolina y GNV.
+# ⛔ Antes «energía» era la división 07 ENTERA (pasajes de minibús, micro y taxi, vehículos, llantas…:
+#   12 %), y el núcleo excluía todo el transporte: en sep-2026 daba 3,5 % contra 5,7 % del estándar,
+#   porque dejaba fuera justo el traslado del precio del combustible a los pasajes.
+def hace_meses(serie: list, meses: int):
+    """Valor de la serie `meses` antes de su último dato, buscado por FECHA (no por posición: si a un producto le
+    falta un mes, serie[-13] compararía contra el mes equivocado sin avisar). None si ese mes no está."""
+    u = serie[-1]["fecha"]
+    t = int(u[:4]) * 12 + int(u[5:7]) - 1 - meses
+    clave = f"{t // 12}-{t % 12 + 1:02d}"
+    return next((x["valor"] for x in reversed(serie) if x["fecha"] == clave), None)
+
+
+ENERGIA_PREFIJOS = ("045", "0722")
+DEFINICIONES = {
+    "nucleo": "IPC sin alimentos ni energía (ponderado por producto con las ponderaciones del INE)",
+    "alimentos": "Alimentos y bebidas no alcohólicas (división 01 de la COICOP)",
+    "energia": "Electricidad, gas y combustibles (COICOP 04.5 y 07.2.2: electricidad, gas por red, GLP, gasolina, GNV)",
+}
 
 
 def clasificar_producto(codigo: str) -> str:
-    div = codigo[:2] if len(codigo) >= 2 else ""
-    if div == "01":
+    if codigo[:2] == "01":
         return "alimentos"
-    if div == "07":
-        return "energia"
-    if codigo in ENERGIA_CODIGOS:
+    if codigo.startswith(ENERGIA_PREFIJOS):
         return "energia"
     return "nucleo"
+
+
+def pesos_divisiones(contenido_pond: bytes, divisiones: dict) -> dict:
+    """
+    Ponderación de cada división = suma de las ponderaciones de sus productos (cuadro del INE, base 2016).
+    Con un índice de Laspeyres de base fija, el índice general es Σ peso·índice / 100: se VERIFICA mes a mes
+    contra el índice general del INE antes de publicar. Con los pesos, la contribución de cada división a la
+    inflación sale exacta (suman la variación del índice general).
+    """
+    import re as _re
+    wb = abrir_excel(contenido_pond)
+    por_div = {}
+    for sheet_name in wb.sheetnames:
+        if "INICIO" in sheet_name.upper():
+            continue
+        ws = wb[sheet_name]
+        for fila in range(1, ws.max_row + 1):
+            code = ws.cell(row=fila, column=1).value
+            desc = ws.cell(row=fila, column=2).value
+            pond = safe_float(ws.cell(row=fila, column=3).value)
+            if code and desc and pond is not None and len(str(code).strip()) >= 4:
+                k = str(code).strip()[:2]
+                por_div[k] = por_div.get(k, 0.0) + pond
+    nombres = {}
+    for nombre in divisiones:
+        m = _re.match(r"(\d+)\.", nombre)
+        if m:
+            nombres[m.group(1).zfill(2)] = nombre
+    if set(nombres) != set(por_div):
+        raise SystemExit(f"✗ pesos: las divisiones no coinciden ({sorted(nombres)} vs {sorted(por_div)})")
+    general = next((v for k, v in divisiones.items() if "GENERAL" in k.upper()), None)
+    if not general:
+        raise SystemExit("✗ pesos: falta el índice general en ipc_divisiones")
+    idx = {k: {x["fecha"]: x["valor"] for x in divisiones[n]} for k, n in nombres.items()}
+    peor = 0.0
+    for punto in general:
+        f = punto["fecha"]
+        if all(f in idx[k] for k in idx):
+            calc = sum(por_div[k] * idx[k][f] for k in idx) / 100
+            peor = max(peor, abs(calc - punto["valor"]))
+    if peor > 0.05:
+        raise SystemExit(f"✗ pesos: Σ peso·índice no reproduce el índice general (desvío máx {peor:.3f})")
+    print(f"  [OK] pesos de división: suman {sum(por_div.values()):.2f}; Σ peso·índice reproduce el general (desvío máx {peor:.4f})")
+    return {
+        "base": "2016",
+        "fuente": "INE — ponderaciones de la canasta del IPC por producto, sumadas por división",
+        "nota": "Contribución de una división a la variación del IPC = peso × (índice hoy − índice antes) / Σ peso × índice antes.",
+        "divisiones": {nombres[k]: round(por_div[k], 4) for k in sorted(por_div)},
+    }
+
+
+def pesos_ciudades(contenido: bytes, ciudades: dict) -> dict:
+    """
+    Ponderación OFICIAL de cada ciudad en el índice nacional (cuadro 1.1 del INE, base 2016). Se verifica que
+    Σ peso·índice de ciudad / 100 reproduzca el índice de BOLIVIA mes a mes antes de publicarla.
+    """
+    import unicodedata as _u
+    norm = lambda t: " ".join(_u.normalize("NFD", str(t)).encode("ascii", "ignore").decode().lower().replace("(", " (").split(" (")[0].split())
+    wb = abrir_excel(contenido)
+    ws = wb[wb.sheetnames[0]]
+    oficiales = {}
+    for fila in range(1, ws.max_row + 1):
+        code, desc, pond = ws.cell(row=fila, column=1).value, ws.cell(row=fila, column=2).value, safe_float(ws.cell(row=fila, column=3).value)
+        if code is not None and str(code).strip().isdigit() and desc and pond is not None:
+            oficiales[norm(desc)] = pond
+    nombres = {norm(c): c for c in ciudades if c.upper() != "BOLIVIA"}
+    if set(nombres) != set(oficiales):
+        raise SystemExit(f"✗ pesos de ciudad: no coinciden {sorted(set(nombres) ^ set(oficiales))}")
+    nac = {x["fecha"]: x["valor"] for x in ciudades["BOLIVIA"]["indice"]}
+    idx = {k: {x["fecha"]: x["valor"] for x in ciudades[c]["indice"]} for k, c in nombres.items()}
+    peor = 0.0
+    for f, v in nac.items():
+        if all(f in idx[k] for k in idx):
+            peor = max(peor, abs(sum(oficiales[k] * idx[k][f] for k in idx) / 100 - v))
+    if peor > 0.05:
+        raise SystemExit(f"✗ pesos de ciudad: Σ peso·índice no reproduce Bolivia (desvío máx {peor:.3f})")
+    print(f"  [OK] pesos de ciudad (oficiales): Σ peso·índice reproduce Bolivia (desvío máx {peor:.4f})")
+    return {nombres[k]: round(oficiales[k], 4) for k in sorted(nombres)}
 
 
 def calcular_descomposicion(contenido_prod: bytes, contenido_pond: bytes) -> dict:
@@ -778,40 +916,6 @@ def calcular_descomposicion(contenido_prod: bytes, contenido_pond: bytes) -> dic
     return resultado
 
 
-def calcular_nucleo(divisiones: dict) -> list[dict]:
-    """Fallback: promedio simple de divisiones excluyendo alimentos y transporte."""
-    excluir_claves = {"1", "7", "01", "07"}
-    excluir_nombres = {"ALIMENTOS", "TRANSPORTE"}
-
-    divs_nucleo = {}
-    for nombre, serie in divisiones.items():
-        nombre_upper = nombre.upper()
-        codigo = nombre.split(".")[0].strip()
-        if codigo in excluir_claves:
-            continue
-        if any(e in nombre_upper for e in excluir_nombres):
-            continue
-        if "GENERAL" in nombre_upper or "INDICE GENERAL" in nombre_upper:
-            continue
-        divs_nucleo[nombre] = serie
-
-    if not divs_nucleo:
-        return []
-
-    por_fecha = {}
-    for serie in divs_nucleo.values():
-        for punto in serie:
-            f = punto["fecha"]
-            if f not in por_fecha:
-                por_fecha[f] = []
-            por_fecha[f].append(punto["valor"])
-
-    nucleo = []
-    for f in sorted(por_fecha.keys()):
-        vals = por_fecha[f]
-        nucleo.append({"fecha": f, "valor": round(sum(vals) / len(vals), 6)})
-
-    return nucleo
 
 
 # ── CEPALSTAT ────────────────────────────────────────────────────────────────
@@ -913,6 +1017,9 @@ def main() -> None:
     # ── Procesar nacional ────────────────────────────────────────────────
     print("\nProcesando datos nacionales...")
 
+    general = None   # lo usa también el control de la descomposición
+    divisiones = None
+    productos = None
     if "general" in archivos:
         general = procesar_general(archivos["general"])
         out_path = DATA_DIR / "ipc_general.json"
@@ -926,11 +1033,13 @@ def main() -> None:
         out_path.write_text(json.dumps(divisiones, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         print(f"  [OK] ipc_divisiones.json - {len(divisiones)} divisiones")
 
-        nucleo = calcular_nucleo(divisiones)
-        if nucleo:
-            nucleo_path = DATA_DIR / "ipc_nucleo.json"
-            nucleo_path.write_text(json.dumps(nucleo, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-            print(f"  [OK] ipc_nucleo.json - {len(nucleo)} meses")
+        # El núcleo sale SÓLO de la descomposición ponderada (más abajo). El viejo respaldo de promedio simple de
+        # divisiones tenía otra definición y, si la descomposición fallaba, quedaba publicado en silencio.
+
+    if divisiones and "ponderaciones" in archivos:
+        pesos = pesos_divisiones(archivos["ponderaciones"], divisiones)
+        (DATA_DIR / "ipc_pesos.json").write_text(json.dumps(pesos, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        print("  [OK] ipc_pesos.json")
 
     if "alimentos" in archivos and "no_alimentos" in archivos:
         ali = procesar_alimentos_simple(archivos["alimentos"])
@@ -947,10 +1056,27 @@ def main() -> None:
         print(f"  [OK] ipc_productos.json - {productos['interanual']['total_productos']} productos (interanual + mensual)")
 
         descomp = calcular_descomposicion(archivos["productos"], archivos["ponderaciones"])
+        descomp["meta"]["definiciones"] = DEFINICIONES
+        # Control: el «general» reconstruido con los productos tiene que reproducir la interanual oficial del INE.
+        # Si en algún mes de los últimos 24 se aparta más de 0,3 pp, la descomposición está mal leída: no se publica.
+        oficial = {x["fecha"]: x["valor"] for x in (general or {}).get("var_interanual", [])}
+        rec = {x["fecha"]: x["valor"] for x in descomp.get("general", [])}
+        desvios = []
+        for f in sorted(oficial)[-24:]:
+            a = f"{int(f[:4]) - 1}{f[4:]}"
+            if f in rec and a in rec and rec[a]:
+                d = (rec[f] / rec[a] - 1) * 100 - oficial[f]
+                if abs(d) > 0.3:
+                    desvios.append(f"{f}: {d:+.2f} pp")
+        if desvios:
+            raise SystemExit("✗ la descomposición no reproduce la interanual del INE: " + ", ".join(desvios[:6]))
+        print(f"  [OK] la descomposición reproduce la interanual del INE (últimos {min(24, len(oficial))} meses, ±0,3 pp)")
         out_path = DATA_DIR / "ipc_descomposicion.json"
         out_path.write_text(json.dumps(descomp, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         meta = descomp.get("meta", {})
         for cat, info in meta.items():
+            if cat == "definiciones":
+                continue
             print(f"    {cat}: {info['productos']} prods, pond={info['ponderacion_total']}%")
         print(f"  [OK] ipc_descomposicion.json")
 
@@ -963,7 +1089,12 @@ def main() -> None:
             print(f"  [OK] ipc_nucleo.json (ponderado) - {len(descomp['nucleo'])} meses")
 
     if "productos" in archivos:
-        prod_hist = procesar_productos_historico(archivos["productos"])
+        extra = []
+        if isinstance(productos, dict):
+            for modo in ("interanual", "mensual"):
+                ap = productos.get("aporte", {}).get(modo, {})
+                extra += [x["producto"] for x in ap.get("suman", []) + ap.get("restan", [])]
+        prod_hist = procesar_productos_historico(archivos["productos"], extra)
         out_path = DATA_DIR / "ipc_productos_hist.json"
         out_path.write_text(json.dumps(prod_hist, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         print(f"  [OK] ipc_productos_hist.json - {len(prod_hist)} productos")
@@ -976,6 +1107,12 @@ def main() -> None:
         out_path = DATA_DIR / "ipc_ciudades.json"
         out_path.write_text(json.dumps(ciudades, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         print(f"  [OK] ipc_ciudades.json - {len(ciudades)} ciudades")
+        if "ponderacion_ciudades" in archivos:
+            ruta_pesos = DATA_DIR / "ipc_pesos.json"
+            pesos = json.loads(ruta_pesos.read_text(encoding="utf-8")) if ruta_pesos.exists() else {}
+            pesos["ciudades"] = pesos_ciudades(archivos["ponderacion_ciudades"], ciudades)
+            pesos["fuente_ciudades"] = "INE — ponderaciones del IPC por ciudad capital y conurbación (cuadro 1.1, base 2016)"
+            ruta_pesos.write_text(json.dumps(pesos, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     if "ciudades_alimentos" in archivos and "ciudades_no_alimentos" in archivos:
         ciudades_ali = procesar_ciudades_alimentos(

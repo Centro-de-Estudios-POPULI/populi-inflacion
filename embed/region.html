@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light" style="--acento:#C71E1D">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bolivia en la región · Populi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="comun/monitor.css" />
+  <style>
+    /* «Ranking»: diez filas (el promedio y los nueve países) de ~32 px; el alto sale de las filas, no del molde */
+    body.rank #chart { height: 360px; }
+    @media (max-width: 640px) { body.rank #chart { height: 344px; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <script src="comun/monitor.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="sec-hd">
+      <h2 class="sec-title"><span class="accent-bar"></span>Bolivia en la región</h2>
+      <p class="sec-sub" id="sub"></p>
+    </div>
+
+    <div class="hz-bar">
+      <div class="hz-item"><span class="hz-lbl">Vista</span><div class="hz-grp" id="b-vista"></div></div>
+      <div class="hz-item" id="it-rango"><span class="hz-lbl">Rango</span><div class="hz-grp" id="b-rango"></div></div>
+      <div class="hz-item" id="it-mes"><span class="hz-lbl">Mes</span><div class="hz-grp" id="b-mes"></div></div>
+    </div>
+
+    <div class="kpi-grid" id="kpis"></div>
+
+    <div class="main-grid">
+      <div class="chart-card">
+        <div class="chart-ctrl">
+          <div class="tog-grp" id="pastillas"></div>
+        </div>
+        <div class="grafico" id="chart"><div class="loading"><div class="spinner"></div><span>Cargando la inflación de la región…</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-hd"><span class="panel-hd-t">Lectura del indicador</span><span class="panel-hd-d" id="panel-fecha"></span></div>
+        <div class="panel-body" id="panel"></div>
+      </div>
+    </div>
+
+    <div class="edu-grid" id="preguntas"></div>
+    <div class="source"><span class="source-txt" id="fuente"></span></div>
+  </div>
+
+  <script>
+  (function () {
+    var C = PM.C, NB = ' ';
+    // Modo FOCO de la marca: el caso (Bolivia) en rojo, 2,5 px, con su cifra al final; UNA referencia en tinta
+    // punteada (el promedio regional o el país que se elija); el resto en gris tenue, sin leyenda.
+    var ROJO = C.rojo, TINTA = C.tinta, TENUE = { claro: C.tenue, oscuro: '#3A4549' };
+    var GRIS = { claro: C.gris, oscuro: '#6E7A7D' };            // barras del resto en el ranking: gris que igual se lee
+    var PZ = { claro: C.pizarra, oscuro: C.gris };
+    var BOL = 'Bolivia', ARG = 'Argentina';
+    var CERCA = 1;          // pp: a menos de 1 pp del promedio, Bolivia está «en línea con la región»
+    var RECORTE = 1.6;      // con Argentina sumada, la escala se recorta si su máximo pasa 1,6 veces el del resto
+    var CORTE = 2;          // en el ranking, la barra de Argentina se corta si pasa el doble de la segunda más alta
+    var SUAVE = { smooth: 0.35, smoothMonotone: 'x' };
+    var estado = { vista: 'evol', rango: 'todo', ref: 'promedio', mes: null, fecha: null, pais: null };
+    var PAISES, OTROS, Y = {}, ULT = {}, K = [], PROM = {}, NPROM = {}, GEN, ULT_INE, si = 0, grafico, hover = null, ITEMS = [], FILAS = [], SIN = [];
+
+    var pct = function (v) { return PM.pct(v, 1, true); };
+    function menos(f, n) { var t = +f.slice(0, 4) * 12 + (+f.slice(5, 7) - 1) - n, a = Math.floor(t / 12), m = t - a * 12 + 1; return a + '-' + (m < 10 ? '0' : '') + m; }
+    var orden = function (a, b) { return a.localeCompare(b, 'es'); };
+
+    PM.cargar(['ipc_regional.json', 'ipc_general.json']).then(function (r) {
+      var R = r[0]; GEN = r[1];
+      PAISES = Object.keys(R);
+      // las pastillas: los demás países en orden alfabético y Argentina al final, junto a su aviso
+      OTROS = PAISES.filter(function (c) { return c !== BOL && c !== ARG; }).sort(orden).concat(PAISES.indexOf(ARG) >= 0 ? [ARG] : []);
+      PAISES.forEach(function (c) {
+        var m = {}; R[c].forEach(function (p) { if (p.valor != null) m[p.fecha] = p.valor; });
+        Y[c] = {};
+        Object.keys(m).forEach(function (f) { var a = menos(f, 12); if (m[a] != null) Y[c][f] = (m[f] / m[a] - 1) * 100; });   // 12 meses antes, por FECHA
+        ULT[c] = Object.keys(Y[c]).sort().pop();
+      });
+      // el eje llega hasta el último mes de Bolivia: es el caso del gráfico
+      var todas = {};
+      PAISES.forEach(function (c) { Object.keys(Y[c]).forEach(function (f) { if (f <= ULT[BOL]) todas[f] = 1; }); });
+      K = Object.keys(todas).sort();
+      K.forEach(function (f) {
+        var v = PAISES.filter(function (c) { return c !== BOL && c !== ARG && Y[c][f] != null; }).map(function (c) { return Y[c][f]; });
+        if (v.length) { PROM[f] = v.reduce(function (s, x) { return s + x; }, 0) / v.length; NPROM[f] = v.length; }
+      });
+      ULT_INE = GEN.var_interanual[GEN.var_interanual.length - 1];
+      estado.mes = K.length - 1; estado.fecha = K[K.length - 1];
+
+      PM.botonera(document.getElementById('b-vista'), [['evol', 'Evolución'], ['rank', 'Ranking']], estado.vista, function (v) {
+        estado.vista = v; hover = null; estado.pais = null;
+        document.body.classList.toggle('rank', v === 'rank');
+        vista(); cifras();
+        grafico.chart.resize();                       // el ranking tiene su propio alto
+        grafico.redibujar();
+        panel(v === 'rank' ? K[estado.mes] : K[K.length - 1]);
+      });
+      PM.botonera(document.getElementById('b-rango'), [['2a', '2 años'], ['5a', '5 años'], ['todo', 'Todo']], estado.rango, function (v) {
+        estado.rango = v; vista(); grafico.redibujar();
+      });
+      var meses = []; for (var i = Math.max(0, K.length - 3); i < K.length; i++) meses.push([String(i), PM.fecha(K[i])]);
+      PM.botonera(document.getElementById('b-mes'), meses, String(estado.mes), function (v) {
+        estado.mes = +v; estado.pais = null; vista(); cifras();
+        if (estado.vista !== 'rank') return;
+        // la opción se FUSIONA: cada fila se desliza de su puesto viejo al nuevo (como el ranking del PIB)
+        var o = opciones(); o.animation = true;
+        grafico.chart.setOption(o); PM.programarAlto(); panel(K[estado.mes]);
+      });
+      pastillas(); vista(); cifras();
+      var el = document.getElementById('chart');
+      el.innerHTML = '';
+      grafico = PM.montar(el, opciones);
+      // Evolución: tocar una línea gris la vuelve la referencia. Ranking: la fila bajo el cursor, en negrita.
+      grafico.chart.on('click', function (p) {
+        if (estado.vista === 'evol' && p.seriesName && OTROS.indexOf(p.seriesName) >= 0) elegir(p.seriesName);
+      });
+      grafico.chart.on('updateAxisPointer', function (e) {
+        if (estado.vista !== 'rank') return;
+        var info = (e.axesInfo || []).filter(function (a) { return a.axisDim === 'y'; })[0];
+        var j = info ? casillero(+info.value) : null;
+        if (j === hover) return;
+        if (hover != null) grafico.chart.dispatchAction({ type: 'downplay', seriesIndex: 0, dataIndex: hover });
+        hover = j;
+        if (j != null) grafico.chart.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: j });
+      });
+      var soltar = function () {
+        if (estado.vista === 'rank' && hover != null) grafico.chart.dispatchAction({ type: 'downplay', seriesIndex: 0, dataIndex: hover });
+        hover = null;
+      };
+      grafico.chart.on('globalout', soltar);
+      grafico.chart.on('hidetip', soltar);
+      panel(estado.fecha);
+      PM.alCambiarTema(function () { cifras(); panel(estado.fecha); });
+      PM.preguntas(document.getElementById('preguntas'), preguntas());
+      document.getElementById('fuente').innerHTML = 'Fuente: <a href="https://statistics.cepal.org/portal/cepalstat/" target="_blank" rel="noopener">CEPAL — CEPALSTAT, índice de precios al consumidor de cada país</a> · Elaboración: Centro de Estudios POPULI · Datos al: ' + PM.fecha(K[K.length - 1]);
+    }).catch(function (e) { console.error(e); PM.error(document.getElementById('chart')); });
+
+    // ── Cuentas ──────────────────────────────────────────────────────────────
+    // Puesto de un país en un mes, de la inflación más alta a la más baja, entre los que tienen dato
+    function puesto(c, f, sinArg) {
+      var l = PAISES.filter(function (x) { return Y[x][f] != null && !(sinArg && x === ARG); }).sort(function (a, b) { return Y[b][f] - Y[a][f]; });
+      return { r: l.indexOf(c) + 1, n: l.length };
+    }
+    function maxArg(desde) {
+      var m = null;
+      K.slice(desde || 0).forEach(function (f) { var v = Y[ARG][f]; if (v != null && (!m || v > m.v)) m = { v: v, f: f }; });
+      return m;
+    }
+    function refNombre() { return estado.ref === 'promedio' ? 'Promedio regional' : estado.ref; }
+
+    // ── Pastillas: UNA referencia a la vez (o ninguna). Argentina sólo entra cuando se la elige ──
+    function pastillas() {
+      var el = document.getElementById('pastillas');
+      var lista = [{ k: 'promedio', nombre: 'Promedio' }].concat(OTROS.map(function (c) { return { k: c, nombre: c }; }));
+      el.innerHTML = '';
+      lista.forEach(function (s) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'pill'; b.dataset.k = s.k;
+        b.title = s.k === 'promedio' ? 'Comparar con el promedio regional' : 'Comparar con ' + s.nombre;
+        b.innerHTML = '<span class="lp dashed"></span>' + s.nombre;
+        b.addEventListener('click', function () { elegir(estado.ref === s.k ? null : s.k); });
+        el.appendChild(b);
+      });
+      pintarPastillas();
+      PM.alCambiarTema(pintarPastillas);
+    }
+    function pintarPastillas() {
+      var dk = PM.dk();
+      document.querySelectorAll('#pastillas .pill').forEach(function (b) {
+        b.style.setProperty('--pc', PM.col(TINTA));
+        b.style.setProperty('--pf', PM.rgba(TINTA, dk ? 0.16 : 0.07));
+        b.style.setProperty('--pb', PM.rgba(TINTA, dk ? 0.6 : 0.45));
+        b.setAttribute('aria-pressed', b.dataset.k === estado.ref);
+      });
+    }
+    function elegir(k) {
+      estado.ref = k; pintarPastillas(); vista();
+      if (estado.vista !== 'evol') return;
+      grafico.redibujar(); panel(estado.fecha);
+    }
+
+    function vista() {
+      var rank = estado.vista === 'rank', f = K[estado.mes];
+      document.getElementById('it-rango').style.display = rank ? 'none' : '';
+      document.getElementById('it-mes').style.display = rank ? '' : 'none';
+      document.getElementById('pastillas').style.display = rank ? 'none' : '';
+      // Todo lo que hay que saber de Argentina va en el subtítulo: así llega también a la imagen descargada
+      var sub;
+      if (rank) {
+        var sin = PAISES.filter(function (c) { return Y[c][f] == null; });
+        var otros = PAISES.filter(function (c) { return c !== ARG && Y[c][f] != null; }).map(function (c) { return Y[c][f]; });
+        var segunda = Math.max.apply(null, otros.concat([PROM[f]]));
+        var corta = Y[ARG][f] != null && Y[ARG][f] > CORTE * Math.max(segunda, 0.5);
+        sub = 'Inflación a 12 meses en ' + PM.fecha(f, true) + ' (%), de la más alta a la más baja. Bolivia en rojo; la raya punteada marca el promedio regional, sin Bolivia ni Argentina.' +
+          (corta ? ' La barra de Argentina está cortada: su inflación es de otro orden.' : '') +
+          (sin.length ? ' ' + sin.join(' y ') + (sin.length > 1 ? ' todavía no tienen' : ' todavía no tiene') + ' dato de ' + PM.fecha(f) + '.' : '');
+      } else {
+        var r = estado.ref, nGris = OTROS.filter(function (c) { return c !== ARG && c !== r; }).length;
+        sub = 'Inflación a 12 meses (%) de Bolivia, en rojo, y de ' + nGris + ' países de Sudamérica, en gris.';
+        if (r === 'promedio') sub += ' La línea punteada es el promedio regional, sin Bolivia ni Argentina.';
+        else if (r && r !== ARG) sub += ' La línea punteada es ' + r + '.';
+        if (r === ARG) {
+          var desde = PM.desde(K, estado.rango), cap = tope(desde), mx = maxArg(desde);
+          sub += ' La línea punteada es Argentina' + (cap != null && mx ? ', que sale de la escala: llega a ' + PM.pct(mx.v, 1) + ' en ' + PM.fecha(mx.f) + '.' : '.');
+        } else if (ULT[ARG]) sub += ' Argentina queda afuera: su inflación es de otro orden (' + pct(Y[ARG][ULT[ARG]]) + ' en ' + PM.fecha(ULT[ARG]) + ').';
+      }
+      document.getElementById('sub').textContent = sub;
+    }
+
+    // Tope del eje con Argentina sumada: si su máximo pasa RECORTE veces el del resto, la escala se recorta
+    // (las líneas se cortan en el borde) y el subtítulo avisa hasta dónde llega.
+    function tope(desde) {
+      var M = -Infinity, A = -Infinity;
+      K.slice(desde).forEach(function (f) {
+        PAISES.forEach(function (c) { var v = Y[c][f]; if (v == null) return; if (c === ARG) A = Math.max(A, v); else M = Math.max(M, v); });
+      });
+      if (!(A > RECORTE * M)) return null;
+      var paso = M > 20 ? 10 : 5;
+      return Math.ceil(M * 1.25 / paso) * paso;
+    }
+
+    function cifras() {
+      var i = estado.vista === 'rank' ? estado.mes : K.length - 1, f = K[i], p = K[i - 1], a = menos(f, 12);
+      var b = Y[BOL][f], db = b - Y[BOL][p], rk = puesto(BOL, f), pr = PROM[f], d = b - pr;
+      var dA = Y[BOL][a] != null && PROM[a] != null ? Y[BOL][a] - PROM[a] : null;
+      var serie = function (fn) { var out = []; for (var j = Math.max(0, i - 23); j <= i; j++) out.push(fn(K[j])); return out; };
+      document.getElementById('kpis').innerHTML =
+        PM.kpi({ color: ROJO, rotulo: 'Bolivia · ' + PM.fecha(f), valor: pct(b),
+          delta: PM.flecha(db, 0.05) + ' ' + PM.num(Math.abs(db), 1) + NB + 'pp en el mes', tono: Math.abs(db) < 0.05 ? 'neutro' : db > 0 ? 'malo' : 'bueno',
+          serie: serie(function (x) { return Y[BOL][x]; }) }) +
+        PM.kpi({ color: PZ, rotulo: 'Puesto de Bolivia', valor: rk.r + ' de ' + rk.n, delta: 'de la inflación más alta a la más baja',
+          tono: rk.r <= rk.n / 3 ? 'malo' : rk.r > rk.n * 2 / 3 ? 'bueno' : 'neutro' }) +
+        PM.kpi({ color: TINTA, rotulo: 'Promedio regional', valor: pct(pr), delta: NPROM[f] + ' países, sin Bolivia ni Argentina', tono: 'neutro',
+          serie: serie(function (x) { return PROM[x]; }) }) +
+        PM.kpi({ color: d >= 0 ? ROJO : C.turquesa, rotulo: 'Distancia de Bolivia', valor: PM.pp(d, 1), delta: dA != null ? 'hace 12 meses: ' + PM.pp(dA, 1) : 'Bolivia − promedio',
+          tono: Math.abs(d) < CERCA ? 'neutro' : d > 0 ? 'malo' : 'bueno', serie: serie(function (x) { return Y[BOL][x] != null && PROM[x] != null ? Y[BOL][x] - PROM[x] : null; }) });
+    }
+
+    function opciones() { return estado.vista === 'rank' ? opcRank() : opcEvol(); }
+
+    // ── Evolución: líneas en modo foco ───────────────────────────────────────
+    function opcEvol() {
+      var el = document.getElementById('chart'), ref = estado.ref, chico = PM.pequeno(), card = PM.var('--card') || '#fff';
+      si = PM.desde(K, estado.rango);
+      var KR = K.slice(si), series = [], minimo = Infinity;
+      var dato = function (c) { return KR.map(function (f) { var v = Y[c][f]; if (v == null) return null; if (v < minimo && c !== ARG) minimo = v; return Math.round(v * 1e4) / 1e4; }); };
+      // el resto, en gris tenue y debajo de todo
+      OTROS.forEach(function (c) {
+        if (c === ARG || c === ref) return;
+        series.push(PM.mezclar({ type: 'line', name: c, data: dato(c), symbol: 'none', z: 2, connectNulls: false,
+          lineStyle: { width: 1.25, color: PM.col(TENUE), cap: 'round', join: 'round' }, itemStyle: { color: PM.col(TENUE) }, emphasis: { disabled: true } }, SUAVE));
+      });
+      // la referencia, en tinta punteada
+      if (ref) {
+        var dr = ref === 'promedio' ? KR.map(function (f) { return PROM[f] == null ? null : Math.round(PROM[f] * 1e4) / 1e4; }) : dato(ref);
+        series.push(PM.linea(TINTA, { ancho: 1.5, punteada: true, extra: PM.mezclar({ name: refNombre(), data: dr, z: 6, connectNulls: false, emphasis: { disabled: true } }, SUAVE) }));
+      }
+      // Bolivia: rojo, 2,5 px, punto final con su cifra
+      var db = dato(BOL), n = db.length - 1;
+      while (n > 0 && db[n] == null) n--;
+      var mp = PM.puntoFinal(ROJO, n, db[n]), baja = n > 0 && db[n - 1] != null && db[n - 1] > db[n];
+      // la cifra con FONDO de la tarjeta (ninguna línea la cruza), del lado contrario a la línea que llega,
+      // recostada hacia la izquierda: el último dato está en el borde derecho del trazado
+      mp.label = { show: true, position: baja ? 'bottom' : 'top', distance: 8, formatter: pct(db[n]), color: PM.tx(ROJO), fontFamily: PM.mono(), fontWeight: 700,
+        fontSize: chico ? 10.5 : 11.5, backgroundColor: card, padding: [1, 3], align: 'right', offset: [4, 0] };
+      var bol = PM.linea(ROJO, { ancho: 2.5, extra: PM.mezclar({ name: BOL, data: db, z: 10, connectNulls: false, emphasis: { disabled: true }, markPoint: mp }, SUAVE) });
+      if (minimo < 0) bol.markLine = PM.cero();
+      series.push(bol);
+      // Escala recortada (Argentina sumada): tope fijo, y el piso y el corte elegidos para que las marcas caigan
+      // en múltiplos limpios (con sólo el tope fijo ECharts dejaba «38%» pegado a «40%»)
+      var cap = ref === ARG ? tope(si) : null, ejeExtra = {};
+      if (cap != null) {
+        var lo = Math.min(0, minimo), iv = [1, 2, 2.5, 5, 10, 20, 25, 50, 100].filter(function (c) { return (Math.ceil(cap / c) * c - Math.floor(lo / c) * c) / c <= (chico ? 5 : 7); })[0] || 100;
+        ejeExtra = { max: Math.ceil(cap / iv) * iv, min: Math.floor(lo / iv) * iv, interval: iv };
+      }
+      return {
+        grid: PM.grid({ top: 16 }),
+        xAxis: PM.ejeTiempo(KR, el),
+        yAxis: PM.ejeY({ fmt: 'pct', extra: ejeExtra }),
+        tooltip: PM.tooltip(function (ps) {
+          var p = ps.filter(function (q) { return q.seriesName === BOL; })[0] || ps[0];
+          if (!p) return '';
+          var f = KR[p.dataIndex];
+          if (!f) return '';
+          panel(f);
+          var h = PM.ttTitulo(PM.fecha(f), 'Inflación a 12 meses'), rk = puesto(BOL, f);
+          var fila = function (c) {
+            if (Y[c][f] == null) return '';
+            return PM.ttFila(c === BOL ? ROJO : c === ref ? TINTA : GRIS, c, pct(Y[c][f]), c === ref ? 'punteada' : 'linea');
+          };
+          if (chico) {                                   // en el teléfono, sólo lo que se compara
+            h += fila(BOL);
+            if (ref && ref !== 'promedio') h += fila(ref);
+          } else {
+            PAISES.filter(function (c) { return Y[c][f] != null && (c !== ARG || ref === ARG); })
+              .sort(function (a, b) { return Y[b][f] - Y[a][f]; }).forEach(function (c) { h += fila(c); });
+          }
+          if (PROM[f] != null) h += ref === 'promedio' ? PM.ttFila(TINTA, 'Promedio regional', pct(PROM[f]), 'punteada') : PM.ttFila(null, 'Promedio regional', pct(PROM[f]));
+          return h + PM.ttTotal('Puesto de Bolivia', rk.r + ' de ' + rk.n);
+        }),
+        series: series
+      };
+    }
+
+    // ── Ranking: el lenguaje del ranking de actividades del PIB ─────────────────
+    var medidor;
+    function ancho(t, fuente) { medidor = medidor || document.createElement('canvas').getContext('2d'); medidor.font = fuente; return medidor.measureText(t).width; }
+    // casillero del eje (0 = promedio, 1… = puesto) → índice en ITEMS
+    function casillero(c) {
+      if (c === 0) return 0;
+      var x = FILAS.concat(SIN.map(function (k) { return { k: k }; }))[c - 1];
+      return x ? 1 + PAISES.indexOf(x.k) : null;
+    }
+    function opcRank() {
+      var el = document.getElementById('chart'), f = K[estado.mes], chico = PM.pequeno(), dk = PM.dk();
+      var W = el.clientWidth, izq = chico ? 12 : 6, der = chico ? 12 : 8;
+      var pz = PM.col(PZ), tinta = PM.col(TINTA), card = PM.var('--card') || '#ffffff';
+      var fN = chico ? 11 : 12, fV = chico ? 10.5 : 11.5, fR = chico ? 9.5 : 10, mono = PM.mono(), inter = PM.inter();
+      FILAS = PAISES.filter(function (c) { return Y[c][f] != null; }).map(function (c) { return { k: c, v: Y[c][f] }; }).sort(function (a, b) { return b.v - a.v; });
+      SIN = PAISES.filter(function (c) { return Y[c][f] == null; });
+      var pos = {};
+      FILAS.forEach(function (x, j) { pos[x.k] = j + 1; });
+      SIN.forEach(function (c, j) { pos[c] = FILAS.length + 1 + j; });
+      ITEMS = [{ k: 'promedio', v: PROM[f] }].concat(PAISES.map(function (c) { return { k: c, v: Y[c][f] != null ? Y[c][f] : null }; }));
+      var nombre = function (x) { return x.k === 'promedio' ? (chico ? 'Promedio' : 'Promedio regional') : x.k; };
+      var rankW = Math.ceil(ancho('10', '500 ' + fR + 'px ' + mono)) + 8;
+      var nameW = Math.ceil(Math.max.apply(null, ITEMS.map(function (x) { return ancho(nombre(x), '700 ' + fN + 'px ' + inter); })));
+      var gut = rankW + nameW + 12, plotL = izq + gut, plotW = W - izq - der - gut;
+      // Argentina, cortada: su barra llega hasta 1,5 veces la segunda más alta y lleva la marca de corte
+      var otros = ITEMS.filter(function (x) { return x.v != null && x.k !== ARG; }).map(function (x) { return x.v; });
+      var segunda = Math.max.apply(null, otros), va = Y[ARG][f];
+      var corta = va != null && va > CORTE * Math.max(segunda, 0.5), hasta = segunda * 1.5;
+      var ve = function (x) { return x.v == null ? 0 : corta && x.k === ARG ? hasta : x.v; };   // valor de ESCALA
+      var cifra = function (x) { return x.v == null ? 'sin dato' : pct(x.v); };
+      var vals = ITEMS.map(ve), lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max(0, Math.max.apply(null, vals));
+      var PAD = 3, GAP = 4, lw = function (x) { return ancho(cifra(x), '600 ' + fV + 'px ' + mono) + 2 * PAD; };
+      var span = (hi - lo) || 1, k = plotW / span, pxL = 4, pxR = 4;
+      for (var it = 0; it < 5; it++) {
+        pxL = 4; pxR = 4;
+        ITEMS.forEach(function (x) { var v = ve(x); if (v < 0) pxL = Math.max(pxL, GAP + lw(x) - (v - lo) * k); else pxR = Math.max(pxR, GAP + lw(x) - (hi - v) * k); });
+        k = (plotW - pxL - pxR) / span;
+      }
+      var X = function (v) { return plotL + pxL + (v - lo) * k; };
+      var cero = X(0), xp = X(PROM[f]);
+      var lineaCero = dk ? 'rgba(226,232,240,.55)' : 'rgba(0,18,25,.5)', filete = dk ? '#2A3A50' : '#E2DDD3';
+      var colB = function (x) { return x.k === 'promedio' ? tinta : x.k === BOL ? PM.col(ROJO) : PM.col(GRIS); };
+      var colT = function (x) { return x.v == null ? pz : x.k === BOL ? PM.tx(ROJO) : tinta; };
+      return {
+        animationDurationUpdate: 650, animationEasingUpdate: 'cubicInOut',
+        grid: { left: izq, right: der, top: 4, bottom: 4, containLabel: false },
+        xAxis: { type: 'value', min: lo, max: hi, show: false },
+        yAxis: { type: 'category', inverse: true, data: ITEMS.map(function (x, j) { return String(j); }),
+          axisLine: { show: false }, axisTick: { show: false }, axisLabel: { show: false }, splitLine: { show: false } },
+        tooltip: PM.tooltip(function (ps) {
+          if (!ps.length) return '';
+          var x = ITEMS[ps[0].dataIndex];
+          if (!x) return '';
+          var sub = 'Inflación a 12 meses · ' + PM.fecha(f);
+          if (x.k === 'promedio') return PM.ttTitulo('Promedio regional', sub) + PM.ttFila(TINTA, 'Promedio', pct(PROM[f]), 'punteada') +
+            PM.ttFila(null, 'Países', NPROM[f] + ', sin Bolivia ni Argentina') + PM.ttTotal('Bolivia', pct(Y[BOL][f]));
+          panel(f, x.k);
+          if (x.v == null) return PM.ttTitulo(x.k, sub) + PM.ttFila(null, 'Sin dato de ' + PM.fecha(f), '—') + PM.ttFila(null, 'Último: ' + PM.fecha(ULT[x.k]), pct(Y[x.k][ULT[x.k]]));
+          var h = PM.ttTitulo(x.k, sub) + PM.ttFila(x.k === BOL ? ROJO : GRIS, x.k, pct(x.v), 'area');
+          if (x.k !== BOL) h += PM.ttFila(ROJO, 'Bolivia', pct(Y[BOL][f]), 'area');
+          return h + PM.ttFila(TINTA, 'Promedio regional', pct(PROM[f]), 'punteada') + PM.ttTotal('Puesto', pos[x.k] + ' de ' + FILAS.length);
+        }, { axisPointer: { type: 'shadow', shadowStyle: { color: dk ? 'rgba(226,232,240,.07)' : 'rgba(0,18,25,.05)' } } }),
+        series: [{
+          type: 'custom', id: 'ranking', name: 'Inflación a 12 meses', coordinateSystem: 'cartesian2d',
+          encode: { x: 0, y: 1, tooltip: 0 }, emphasis: { focus: 'none' },
+          // cada dato lleva el id de su país: al cambiar de mes, la fila entera se desliza a su nuevo puesto
+          data: ITEMS.map(function (x) { return { id: x.k, value: [ve(x), x.k === 'promedio' ? 0 : pos[x.k]] }; }),
+          renderItem: function (params, api) {
+            var x = ITEMS[params.dataIndex], cs = params.coordSys, cy = api.coord([0, api.value(1)])[1], rh = api.size([0, 1])[1];
+            var bh = Math.round(Math.min(20, rh * 0.6)), x1 = X(ve(x)), neg = ve(x) < 0, prom = x.k === 'promedio', foco = x.k === BOL;
+            // Las piezas van SIEMPRE en el mismo orden y la barra existe aunque el país no tenga dato (invisible):
+            // ECharts empareja las piezas por posición al animar, y una barra que aparecía en un mes nuevo salía
+            // transformada desde el texto que ocupaba su lugar.
+            var hijos = [{ type: 'rect', z2: 2, invisible: x.v == null, shape: { x: Math.min(cero, x1), y: -bh / 2, width: Math.max(1, Math.abs(x1 - cero)), height: bh }, style: { fill: colB(x) } }];
+            hijos.push({ type: 'text', z2: 5, x: neg ? x1 - GAP : (x.v == null ? cero + GAP : x1 + GAP), y: 0, transition: ['x'],
+              style: { text: cifra(x), fontFamily: mono, fontSize: fV, fontWeight: x.v == null ? 500 : 600, fill: colT(x), align: neg ? 'right' : 'left', verticalAlign: 'middle',
+                backgroundColor: card, padding: [1, PAD] } });
+            hijos.push({ type: 'text', z2: 5, x: plotL - 12, y: 0,
+              style: { text: nombre(x), fontFamily: inter, fontSize: fN, fontWeight: prom || foco ? 700 : 500, fill: foco ? PM.tx(ROJO) : tinta, align: 'right', verticalAlign: 'middle' },
+              emphasis: { style: { fontWeight: 700 } } });
+            if (!prom) hijos.push({ type: 'text', z2: 5, x: cs.x, y: 0,
+              style: { text: x.v == null ? '—' : String(pos[x.k]), fontFamily: mono, fontSize: fR, fontWeight: 500, fill: pz, align: 'left', verticalAlign: 'middle' } });
+            else {
+              var abajo = rh / 2, fin = cs.y + cs.height - cy;
+              hijos.push({ type: 'line', z2: 1, silent: true, shape: { x1: cs.x, y1: abajo, x2: cs.x + cs.width, y2: abajo }, style: { stroke: filete, lineWidth: 1 } });
+              hijos.push({ type: 'line', z2: 1, silent: true, shape: { x1: cero, y1: cs.y + 2 - cy, x2: cero, y2: fin - 2 }, style: { stroke: lineaCero, lineWidth: 1 } });
+              hijos.push({ type: 'line', z2: 0, silent: true, shape: { x1: xp, y1: abajo + 3, x2: xp, y2: fin - 2 }, style: { stroke: pz, lineWidth: 1.25, lineDash: [4, 3], opacity: 0.8 } });
+            }
+            // la marca de corte, al final (aparece y desaparece sin mover las demás piezas): dos rayas oblicuas del
+            // color de la tarjeta cerca del extremo de la barra de Argentina
+            if (x.v != null && corta && x.k === ARG) [0, 6].forEach(function (dx) {
+              var xc = x1 - 16 + dx;
+              hijos.push({ type: 'line', z2: 3, silent: true, shape: { x1: xc - 3, y1: bh / 2 + 2, x2: xc + 3, y2: -bh / 2 - 2 }, style: { stroke: card, lineWidth: 2 } });
+            });
+            return { type: 'group', y: cy, transition: ['y'], children: hijos };
+          }
+        }]
+      };
+    }
+
+    // ── Lectura ──────────────────────────────────────────────────────────────
+    function lectura(f) {
+      var b = Y[BOL][f], pr = PROM[f], d = b - pr, a = menos(f, 12), sa = puesto(BOL, f, true), va = Y[ARG][f], head;
+      if (sa.r === 1) head = 'Bolivia tiene la inflación más alta de la región' + (va != null && va > b ? ', después de Argentina' : '') + '.';
+      else if (sa.r === sa.n) head = 'Bolivia tiene la inflación más baja de la región.';
+      else if (d >= CERCA) head = 'Bolivia está por encima del promedio regional.';
+      else if (d <= -CERCA) head = 'Bolivia está por debajo del promedio regional.';
+      else head = 'Bolivia está en línea con la región.';
+      var txt = '<strong>' + head + '</strong> Su inflación a 12 meses es de ' + PM.dt(ROJO, pct(b)) + ', frente a ' + PM.dt(TINTA, pct(pr)) + ' del promedio: ' +
+        (Math.abs(d) < 0.05 ? 'casi la misma.' : PM.num(Math.abs(d), 1) + NB + 'pp ' + (d > 0 ? 'más.' : 'menos.'));
+      if (Y[BOL][a] != null && PROM[a] != null) {
+        var dA = Y[BOL][a] - PROM[a];
+        txt += ' Hace un año estaba ' + (Math.abs(dA) < 0.05 ? 'igual que el promedio.' : PM.num(Math.abs(dA), 1) + NB + 'pp ' + (dA > 0 ? 'por encima.' : 'por debajo.'));
+      }
+      return txt;
+    }
+
+    function panel(f, kp) {
+      if (!f || Y[BOL][f] == null || PROM[f] == null) return;
+      estado.fecha = f;
+      if (kp !== undefined) estado.pais = kp;
+      var b = Y[BOL][f], pr = PROM[f], d = b - pr, a = menos(f, 12), rk = puesto(BOL, f), ref = estado.ref, rank = estado.vista === 'rank';
+      var hace = function (c) { return Y[c][a] != null ? ' Hace 12 meses: ' + pct(Y[c][a]) + '.' : ''; };
+      var otro = rank ? (estado.pais && estado.pais !== BOL ? estado.pais : null) : (ref && ref !== 'promedio' ? ref : null);
+      var html = PM.pb(ROJO, 'Bolivia', pct(b), 'Puesto <strong>' + rk.r + ' de ' + rk.n + '</strong>, de la inflación más alta a la más baja.' + hace(BOL)) +
+        PM.pb(rank || ref === 'promedio' ? TINTA : PZ, 'Promedio regional', pct(pr), 'Promedio simple de ' + NPROM[f] + ' países, sin Bolivia ni Argentina.' +
+          (PROM[a] != null ? ' Hace 12 meses: ' + pct(PROM[a]) + '.' : ''));
+      if (otro) {
+        var vo = Y[otro][f], ro = puesto(otro, f);
+        html += PM.pb(rank ? GRIS : TINTA, otro, vo == null ? '—' : pct(vo), vo == null ? 'Sin dato de ' + PM.fecha(f) + '; el último es de ' + PM.fecha(ULT[otro]) + '.'
+          : 'Puesto ' + ro.r + ' de ' + ro.n + '. Bolivia, ' + PM.pp(b - vo, 1) + ' frente a ' + otro + '.' + hace(otro));
+      }
+      html += PM.pb(Math.abs(d) < CERCA ? PZ : d > 0 ? ROJO : C.turquesa, 'Distancia al promedio', PM.pp(d, 1), 'Bolivia menos el promedio regional.');
+      document.getElementById('panel-fecha').textContent = PM.fecha(f);
+      document.getElementById('panel').innerHTML = html + PM.ctx(lectura(f));
+    }
+
+    // ── Descargas ────────────────────────────────────────────────────────────
+    PM.leyendaImagen = function () {
+      if (estado.vista === 'rank') return [{ name: 'Bolivia', color: PM.col(ROJO), forma: 'area' }, { name: 'Resto de la región', color: PM.col(GRIS), forma: 'area' },
+        { name: 'Promedio regional: ' + pct(PROM[K[estado.mes]]), color: PM.col(PZ), forma: 'punteada' }];
+      var out = [{ name: 'Bolivia', color: PM.col(ROJO), forma: 'linea' }];
+      if (estado.ref) out.push({ name: refNombre(), color: PM.col(TINTA), forma: 'punteada' });
+      out.push({ name: 'Resto de la región', color: PM.col(TENUE), forma: 'linea' });
+      return out;
+    };
+    PM.tablaDatos = function () {
+      if (estado.vista === 'rank') {
+        var f = K[estado.mes];
+        return { cols: ['Puesto', 'País', 'Mes', 'Inflación a 12 meses (%)'],
+          filas: FILAS.map(function (x, j) { return [j + 1, x.k, f, x.v]; }).concat(SIN.map(function (c) { return ['', c, f, null]; }))
+            .concat([['', 'Promedio regional (sin Bolivia ni Argentina)', f, PROM[f]]]) };
+      }
+      return { cols: ['Mes'].concat(PAISES.map(function (c) { return c + ' (%)'; }), ['Promedio regional sin Bolivia ni Argentina (%)']),
+        filas: K.map(function (f) { return [f].concat(PAISES.map(function (c) { return Y[c][f]; }), [PROM[f]]); }) };
+    };
+
+    function preguntas() {
+      var ult = K[K.length - 1], mx = maxArg(0);
+      var atras = PAISES.filter(function (c) { return ULT[c] < ult; });
+      return [
+        ['¿Qué muestra?', 'La inflación a 12 meses de <strong>' + PAISES.length + ' países de Sudamérica</strong>, calculada con el índice de precios al consumidor de cada uno. Bolivia va en rojo; la línea punteada es la referencia que elijas (el promedio regional o un país) y el resto queda en gris. En «Ranking», los países de la inflación más alta a la más baja en un mes.'],
+        ['¿Por qué Argentina queda afuera?', 'Porque su inflación es de otro orden: llegó a <strong>' + PM.pct(mx.v, 1) + '</strong> en ' + PM.fecha(mx.f, true) + ' y en ' + PM.fecha(ULT[ARG], true) + ' fue de ' + PM.pct(Y[ARG][ULT[ARG]], 1) + '. En la misma escala, las líneas del resto quedarían aplastadas contra el cero. Para verla, tocá su pastilla: entra como referencia y, si se sale de la escala, la escala se recorta y el subtítulo avisa hasta dónde llega. En el ranking sí está, con la barra cortada. Nunca entra en el promedio regional.'],
+        ['¿Cómo se calcula el promedio regional?', 'Es el promedio simple de la inflación a 12 meses de los países con dato en ese mes, <strong>sin Bolivia</strong> (para poder compararla con el resto) <strong>y sin Argentina</strong> (que lo movería sola). Cada país pesa lo mismo, sin importar el tamaño de su economía.'],
+        ['¿Se pueden comparar los IPC de distintos países?', 'En lo grueso, sí: cada uno mide cuánto suben los precios de lo que consumen los hogares de su país. Pero cada instituto de estadística usa su propia canasta y su propio método: una diferencia de pocas décimas entre dos países no dice mucho.'],
+        ['¿Hasta cuándo llegan los datos?', 'La CEPAL reúne en CEPALSTAT el índice de cada país y lo actualiza después de que publica cada instituto: hoy llega a <strong>' + PM.fecha(ult, true) + '</strong>' +
+          (atras.length ? ' (' + atras.map(function (c) { return c + ', a ' + PM.fecha(ULT[c], true); }).join('; ') + ')' : '') + '. La serie de Bolivia es la del INE, que ya publicó ' + PM.fecha(ULT_INE.fecha, true) + ': ' + PM.pct(ULT_INE.valor, 1, true) + '.'],
+        ['Los colores', '<strong>Rojo</strong>: Bolivia, el caso del gráfico. <strong>Tinta punteada</strong>: la referencia que elegiste. <strong>Gris</strong>: el resto de los países, como contexto. En el ranking, la raya punteada vertical es el promedio regional.']
+      ];
+    }
+  })();
+  </script>
+</body>
+</html>
