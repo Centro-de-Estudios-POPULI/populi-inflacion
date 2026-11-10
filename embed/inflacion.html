@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Inflación en Bolivia · Populi</title>
+  <title data-en="Inflation in Bolivia · Populi">Inflación en Bolivia · Populi</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -14,13 +14,13 @@
 <body>
   <div class="wrap">
     <div class="sec-hd">
-      <h2 class="sec-title"><span class="accent-bar"></span>Inflación en Bolivia</h2>
+      <h2 class="sec-title" data-en='<span class="accent-bar"></span>Inflation in Bolivia'><span class="accent-bar"></span>Inflación en Bolivia</h2>
       <p class="sec-sub" id="sub"></p>
     </div>
 
     <div class="hz-bar">
-      <div class="hz-item"><span class="hz-lbl">Vista</span><div class="hz-grp" id="b-vista"></div></div>
-      <div class="hz-item"><span class="hz-lbl">Rango</span><div class="hz-grp" id="b-rango"></div></div>
+      <div class="hz-item"><span class="hz-lbl" data-en="View">Vista</span><div class="hz-grp" id="b-vista"></div></div>
+      <div class="hz-item"><span class="hz-lbl" data-en="Range">Rango</span><div class="hz-grp" id="b-rango"></div></div>
     </div>
 
     <div class="kpi-grid" id="kpis"></div>
@@ -32,14 +32,14 @@
           <div class="tog-grp" id="pastillas-desc" style="display:none"></div>
           <span class="ref" id="ref-meta"><span class="lp dashed"></span><span id="ref-meta-t"></span></span>
         </div>
-        <div class="grafico" id="chart"><div class="loading"><div class="spinner"></div><span>Cargando datos de inflación…</span></div></div>
+        <div class="grafico" id="chart"><div class="loading"><div class="spinner"></div><span data-en="Loading inflation data…">Cargando datos de inflación…</span></div></div>
       </div>
       <div class="panel">
-        <div class="panel-hd"><span class="panel-hd-t">Lectura del indicador</span><span class="panel-hd-d" id="panel-fecha"></span></div>
+        <div class="panel-hd"><span class="panel-hd-t" data-en="Reading the indicator">Lectura del indicador</span><span class="panel-hd-d" id="panel-fecha"></span></div>
         <div class="panel-body" id="panel"></div>
         <div class="panel-ft">
           <a href="https://centro-de-estudios-populi.github.io/populi-inflacion/" target="_blank" rel="noopener" class="amp">
-            <span>Ampliar análisis</span>
+            <span data-en="Expand analysis">Ampliar análisis</span>
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           </a>
         </div>
@@ -58,17 +58,19 @@
 
   <script>
   (function () {
-    var C = PM.C;
-    var META_PGE = 14;                                         // meta de inflación del PGE 2026 (%)
+    var C = PM.C, T = PM.t;   // T('castellano', 'inglés'): con ?lang=en el gráfico sale en inglés
+    var META_PGE = 14;                                        // meta de inflación del PGE 2026 (%)
     var PIZARRA = { claro: C.pizarra, oscuro: '#8A9699' };    // la meta es un umbral: pizarra (regla de la marca)
     var INDICE = { claro: C.petroleo, oscuro: C.menta };      // en oscuro el petróleo queda bajo 3:1
     var SERIES_VAR = [
       // Panel de arriba (líneas): protagonista «A 12 meses» (2,5 px y único relleno) y «Mensual» (1,75 px).
       // Panel de abajo (barras): «Acumulada» en el año, que crece mes a mes y vuelve a cero cada enero.
-      { k: 'var_mensual', nombre: 'Mensual', color: C.turquesa, forma: 'punteada', ancho: 1.75 },
-      { k: 'var_acumulada', nombre: 'Acumulada', color: C.oro, forma: 'area', barras: true },
-      { k: 'var_interanual', nombre: 'A 12 meses', color: C.rojo, forma: 'linea', ancho: 2.5, area: true }
+      { k: 'var_mensual', nombre: T('Mensual', 'Monthly'), color: C.turquesa, forma: 'punteada', ancho: 1.75 },
+      { k: 'var_acumulada', nombre: T('Acumulada', 'Year-to-date'), color: C.oro, forma: 'area', barras: true },
+      { k: 'var_interanual', nombre: T('A 12 meses', '12-month'), color: C.rojo, forma: 'linea', ancho: 2.5, area: true }
     ];
+    // La meta: el mismo nombre en la serie, en el orden del tooltip y en su fila (se busca por nombre)
+    var NOMBRE_META = T('Meta PGE 2026', '2026 Budget target');
     var SERIES_DESC = [];                                      // se arma con las ponderaciones de los datos
     var estado = { vista: 'var', rango: 'todo', idx: { var: null, desc: null } };
     var activas = { var: new Set(SERIES_VAR.map(function (s) { return s.k; })), desc: new Set() };
@@ -80,6 +82,15 @@
     var anioAnterior = function (f) { return (+f.slice(0, 4) - 1) + f.slice(4); };
     // Definiciones: las del dato (meta.definiciones). El núcleo es el ESTÁNDAR: IPC sin alimentos ni energía.
     var DEF = { nucleo: 'IPC sin alimentos ni energía', alimentos: 'Alimentos y bebidas no alcohólicas', energia: 'Electricidad, gas y combustibles' };
+    // Textos que vienen de los datos (metadata.cobertura y las definiciones, ya sin su paréntesis): su pareja en
+    // inglés, aplicada sólo donde se muestran. Un texto que no esté acá queda en castellano.
+    var EN = {
+      '9 ciudades capitales y conurbaciones': '9 capital cities and conurbations',
+      'IPC sin alimentos ni energía': 'CPI excluding food and energy',
+      'Alimentos y bebidas no alcohólicas': 'Food and non-alcoholic beverages',
+      'Electricidad, gas y combustibles': 'Electricity, gas and fuels'
+    };
+    var N = function (s) { return PM.en && EN[s] != null ? EN[s] : s; };
     var COMP = ['nucleo', 'alimentos', 'energia'], IDX = {};
     // Aporte de cada grupo a la inflación a 12 meses, en pp: peso × (índice hoy − índice hace 12 meses) / Σ peso ×
     // índice hace 12 meses. Los tres suman la interanual del índice general (es una cuenta, no una causa).
@@ -105,10 +116,10 @@
       COMP.forEach(function (k) { IDX[k] = {}; DESC[k].forEach(function (p) { IDX[k][p.fecha] = p.valor; }); });
       YOY = { general: interanual(DESC.general), nucleo: interanual(DESC.nucleo), alimentos: interanual(DESC.alimentos), energia: interanual(DESC.energia) };
       SERIES_DESC = [
-        { k: 'general', nombre: 'General', color: C.rojo, forma: 'linea', ancho: 2.5, area: true },
-        { k: 'nucleo', nombre: 'Núcleo (' + pond(pm.nucleo.ponderacion_total) + ')', color: C.turquesa, forma: 'linea', ancho: 1.75 },
-        { k: 'alimentos', nombre: 'Alimentos (' + pond(pm.alimentos.ponderacion_total) + ')', color: C.oro, forma: 'linea', ancho: 1.75 },
-        { k: 'energia', nombre: 'Energía (' + pond(pm.energia.ponderacion_total) + ')', color: { claro: C.petroleo, oscuro: C.menta }, forma: 'punteada', ancho: 1.75 }
+        { k: 'general', nombre: T('General', 'Headline'), color: C.rojo, forma: 'linea', ancho: 2.5, area: true },
+        { k: 'nucleo', nombre: T('Núcleo (' + pond(pm.nucleo.ponderacion_total) + ')', 'Core (' + pond(pm.nucleo.ponderacion_total) + ')'), color: C.turquesa, forma: 'linea', ancho: 1.75 },
+        { k: 'alimentos', nombre: T('Alimentos (' + pond(pm.alimentos.ponderacion_total) + ')', 'Food (' + pond(pm.alimentos.ponderacion_total) + ')'), color: C.oro, forma: 'linea', ancho: 1.75 },
+        { k: 'energia', nombre: T('Energía (' + pond(pm.energia.ponderacion_total) + ')', 'Energy (' + pond(pm.energia.ponderacion_total) + ')'), color: { claro: C.petroleo, oscuro: C.menta }, forma: 'punteada', ancho: 1.75 }
       ];
       SERIES_DESC.forEach(function (s) { activas.desc.add(s.k); });
       K.var = GEN.var_interanual.map(function (p) { return p.fecha; });
@@ -116,17 +127,18 @@
       estado.idx.var = K.var.length - 1;
       estado.idx.desc = K.desc.length - 1;
 
-      document.getElementById('sub').textContent = 'Índice de Precios al Consumidor (IPC) · Base ' + META.base + ' = 100 · ' + META.cobertura;
-      PM.botonera(document.getElementById('b-vista'), [['var', 'Variación IPC'], ['desc', 'Descomposición']], estado.vista, function (v) {
+      document.getElementById('sub').textContent = T('Índice de Precios al Consumidor (IPC) · Base ' + META.base + ' = 100 · ' + META.cobertura,
+        'Consumer Price Index (CPI) · Base ' + META.base + ' = 100 · ' + N(META.cobertura));
+      PM.botonera(document.getElementById('b-vista'), [['var', T('Variación IPC', 'CPI change')], ['desc', T('Descomposición', 'Breakdown')]], estado.vista, function (v) {
         estado.vista = v; vistaPastillas(); grafico.redibujar(); panel(estado.idx[v]);
       });
-      PM.botonera(document.getElementById('b-rango'), [['2a', '2 años'], ['5a', '5 años'], ['todo', 'Todo']], estado.rango, function (v) {
+      PM.botonera(document.getElementById('b-rango'), [['2a', T('2 años', '2 years')], ['5a', T('5 años', '5 years')], ['todo', T('Todo', 'All')]], estado.rango, function (v) {
         estado.rango = v; grafico.redibujar();
       });
       var pastilla = function (s) { return { k: s.k, nombre: s.nombre, color: s.color, forma: s.forma }; };
       PM.pastillas(document.getElementById('pastillas-var'), SERIES_VAR.map(pastilla), activas.var, function () { grafico.redibujar(); });
       PM.pastillas(document.getElementById('pastillas-desc'), SERIES_DESC.map(pastilla), activas.desc, function () { grafico.redibujar(); });
-      document.getElementById('ref-meta-t').textContent = 'Meta PGE 2026 · ' + PM.pct(META_PGE, 0);
+      document.getElementById('ref-meta-t').textContent = NOMBRE_META + ' · ' + PM.pct(META_PGE, 0);
       cifras();
       var el = document.getElementById('chart');
       el.innerHTML = '';
@@ -135,7 +147,9 @@
       panel(estado.idx.var);
       PM.alCambiarTema(function () { cifras(); panel(estado.idx[estado.vista]); });
       PM.preguntas(document.getElementById('preguntas'), PREGUNTAS);
-      document.getElementById('fuente').innerHTML = 'Fuente: <a href="' + META.url_nacional + '" target="_blank" rel="noopener">INE Bolivia</a> · Elaboración: <a href="https://populi.org.bo" target="_blank" rel="noopener">Centro de Estudios POPULI</a> · Datos al: ' + PM.fecha(K.var[K.var.length - 1]);
+      document.getElementById('fuente').innerHTML = T(
+        'Fuente: <a href="' + META.url_nacional + '" target="_blank" rel="noopener">INE Bolivia</a> · Elaboración: <a href="https://populi.org.bo" target="_blank" rel="noopener">Centro de Estudios POPULI</a> · Datos al: ',
+        'Source: <a href="' + META.url_nacional + '" target="_blank" rel="noopener">INE Bolivia</a> · Analysis: <a href="https://populi.org.bo" target="_blank" rel="noopener">Centro de Estudios POPULI</a> · Data as of: ') + PM.fecha(K.var[K.var.length - 1]);
     }).catch(function (e) { console.error(e); PM.error(document.getElementById('chart')); });
 
     function vistaPastillas() {
@@ -160,8 +174,8 @@
         });
       };
       document.getElementById('kpis').innerHTML =
-        cifra(C.rojo, 'Interanual', 'var_interanual') + cifra(C.turquesa, 'Mensual', 'var_mensual') +
-        cifra(C.oro, 'Acumulada ' + anio, 'var_acumulada') + cifra(INDICE, 'Índice IPC', 'indice', true);
+        cifra(C.rojo, T('Interanual', 'Year-on-year'), 'var_interanual') + cifra(C.turquesa, T('Mensual', 'Monthly'), 'var_mensual') +
+        cifra(C.oro, T('Acumulada ' + anio, 'Year-to-date ' + anio), 'var_acumulada') + cifra(INDICE, T('Índice IPC', 'CPI index'), 'indice', true);
     }
 
     function opciones() {
@@ -233,7 +247,7 @@
         delete eje._bordes;
         if (!ultimo) { eje.axisLabel.show = false; eje.axisTick.show = false; }
         xs.push(eje);
-        var extra = { gridIndex: j, name: tipo === 'lineas' ? 'A 12 meses y mensual' : 'Acumulada en el año', nameGap: 9,
+        var extra = { gridIndex: j, name: tipo === 'lineas' ? T('A 12 meses y mensual', '12-month and monthly') : T('Acumulada en el año', 'Year-to-date'), nameGap: 9,
           nameTextStyle: { align: 'left' }, splitNumber: chico ? 3 : 4 };
         if (tipo === 'barras') {
           // Panel bajo: cortes limpios desde el cero (3 tramos en PC, 2 en el teléfono). ECharts arranca los
@@ -267,7 +281,7 @@
         if (minimo < 0 && series.length > primera) series[primera].markLine = PM.cero();
         // La meta como serie invisible (entra en la escala y en el tooltip); la punteada la dibuja la marca.
         series.push({
-          name: 'Meta PGE 2026', type: 'line', data: KR.map(function () { return META_PGE; }), symbol: 'none', silent: true, z: 1,
+          name: NOMBRE_META, type: 'line', data: KR.map(function () { return META_PGE; }), symbol: 'none', silent: true, z: 1,
           xAxisIndex: iL, yAxisIndex: iL, lineStyle: { opacity: 0 }, itemStyle: { color: pz }, emphasis: { disabled: true },
           markLine: { silent: true, symbol: 'none', animation: false, data: [{ yAxis: META_PGE }],
             lineStyle: { color: pz, width: 1.25, type: [5, 4] }, label: { show: false } }
@@ -287,7 +301,8 @@
         if (minB < 0 && -minB > 0.15 * (ys[iB].interval || 1)) b.markLine = PM.cero();
         series.push(b);
       }
-      var ORDEN = ['A 12 meses', 'Mensual', 'Meta PGE 2026', 'Acumulada'];
+      // los mismos nombres (ya en el idioma del gráfico) que llevan las series: el tooltip las busca por nombre
+      var ORDEN = [T('A 12 meses', '12-month'), T('Mensual', 'Monthly'), NOMBRE_META, T('Acumulada', 'Year-to-date')];
       return {
         grid: grids, xAxis: xs, yAxis: ys,
         // un solo cursor: la línea vertical cruza los dos paneles y el tooltip trae las series de ambos
@@ -301,10 +316,10 @@
           ORDEN.forEach(function (nombre) {
             var p = v.filter(function (q) { return q.seriesName === nombre; })[0];
             if (!p) return;
-            if (nombre === 'Meta PGE 2026') { h += PM.ttFila(PIZARRA, 'Meta PGE 2026', PM.pct(META_PGE, 0), 'punteada'); return; }
+            if (nombre === NOMBRE_META) { h += PM.ttFila(PIZARRA, NOMBRE_META, PM.pct(META_PGE, 0), 'punteada'); return; }
             var sv = SERIES_VAR.filter(function (q) { return q.nombre === nombre; })[0];
             var val = p.value && typeof p.value === 'object' ? p.value.value : p.value;
-            h += PM.ttFila(sv.color, sv.barras ? 'Acumulada en el año' : sv.nombre, pct2(val), sv.forma);
+            h += PM.ttFila(sv.color, sv.barras ? T('Acumulada en el año', 'Year-to-date') : sv.nombre, pct2(val), sv.forma);
           });
           return h;
         }),
@@ -321,21 +336,37 @@
       var vt = PM.dt(C.rojo, pct2(t.valor)), txt;
       // la cuenta en llano (lo que costaba 100 Bs) y la interanual de hace un año, buscada por FECHA
       var tA = GEN.var_interanual.filter(function (p) { return p.fecha === anioAnterior(t.fecha); })[0];
-      var cuenta = ' La canasta que costaba 100 Bs en ' + PM.fecha(anioAnterior(t.fecha), true) + ' cuesta ' + PM.num(100 + t.valor, 2) + ' Bs en ' + PM.fecha(t.fecha, true) + '.' +
-        (tA ? ' Hace un año, la interanual era de ' + pct2(tA.valor) + '.' : '');
-      if (t.valor > 15) txt = 'Con una inflación interanual de ' + vt + ', Bolivia atraviesa un periodo de <strong>fuerte erosión del poder adquisitivo</strong>. Los precios son significativamente más altos que hace un año, afectando especialmente a los hogares de menores ingresos.' + cuenta;
-      else if (t.valor > 8) txt = 'La inflación interanual de ' + vt + ' se sitúa en <strong>niveles elevados</strong>, muy por encima del promedio histórico boliviano.' + cuenta;
-      else if (t.valor > 4) txt = 'Con ' + vt + ' interanual, la inflación se encuentra <strong>por encima del rango habitual</strong> para la economía boliviana.' + cuenta;
-      else if (t.valor > 0) txt = 'La inflación interanual de ' + vt + ' se mantiene dentro de <strong>niveles controlados</strong>, en línea con el comportamiento histórico.' + cuenta;
-      else txt = 'Se registra <strong>deflación interanual</strong> (' + vt + '): el nivel general de precios es inferior al de hace 12 meses.' + cuenta;
+      var cuenta = T(
+        ' La canasta que costaba 100 Bs en ' + PM.fecha(anioAnterior(t.fecha), true) + ' cuesta ' + PM.num(100 + t.valor, 2) + ' Bs en ' + PM.fecha(t.fecha, true) + '.' +
+        (tA ? ' Hace un año, la interanual era de ' + pct2(tA.valor) + '.' : ''),
+        ' The basket that cost Bs 100 in ' + PM.fecha(anioAnterior(t.fecha), true) + ' costs Bs ' + PM.num(100 + t.valor, 2) + ' in ' + PM.fecha(t.fecha, true) + '.' +
+        (tA ? ' A year ago, the year-on-year rate was ' + pct2(tA.valor) + '.' : ''));
+      if (t.valor > 15) txt = T(
+        'Con una inflación interanual de ' + vt + ', Bolivia atraviesa un periodo de <strong>fuerte erosión del poder adquisitivo</strong>. Los precios son significativamente más altos que hace un año, afectando especialmente a los hogares de menores ingresos.',
+        'With year-on-year inflation of ' + vt + ', Bolivia is going through a period of <strong>severe erosion of purchasing power</strong>. Prices are significantly higher than a year ago, affecting lower-income households in particular.') + cuenta;
+      else if (t.valor > 8) txt = T(
+        'La inflación interanual de ' + vt + ' se sitúa en <strong>niveles elevados</strong>, muy por encima del promedio histórico boliviano.',
+        'Year-on-year inflation of ' + vt + ' stands at <strong>high levels</strong>, well above the Bolivian historical average.') + cuenta;
+      else if (t.valor > 4) txt = T(
+        'Con ' + vt + ' interanual, la inflación se encuentra <strong>por encima del rango habitual</strong> para la economía boliviana.',
+        'At ' + vt + ' year-on-year, inflation is <strong>above the usual range</strong> for the Bolivian economy.') + cuenta;
+      else if (t.valor > 0) txt = T(
+        'La inflación interanual de ' + vt + ' se mantiene dentro de <strong>niveles controlados</strong>, en línea con el comportamiento histórico.',
+        'Year-on-year inflation of ' + vt + ' remains within <strong>controlled levels</strong>, in line with historical behavior.') + cuenta;
+      else txt = T(
+        'Se registra <strong>deflación interanual</strong> (' + vt + '): el nivel general de precios es inferior al de hace 12 meses.',
+        '<strong>Year-on-year deflation</strong> is recorded (' + vt + '): the general price level is lower than 12 months ago.') + cuenta;
       document.getElementById('panel-fecha').textContent = PM.fecha(t.fecha);
       document.getElementById('panel').innerHTML =
-        PM.pb(C.turquesa, 'Inflación mensual', pct2(m.valor),
-          'En <strong>' + PM.fecha(m.fecha) + '</strong>, los precios variaron ' + PM.dt(C.turquesa, pct2(m.valor)) + ' respecto a <strong>' + PM.fecha(mesAnterior(m.fecha)) + '</strong>. Variación porcentual del nivel general de precios entre dos meses consecutivos, basada en el IPC.') +
-        PM.pb(C.oro, 'Acumulada ' + anio, pct2(a.valor),
-          'Desde enero de <strong>' + anio + '</strong>, los precios acumulan ' + PM.dt(C.oro, pct2(a.valor)) + '. Efecto conjunto de las variaciones mensuales desde el inicio del año calendario.') +
-        PM.pb(C.rojo, 'Interanual · 12 meses', pct2(t.valor),
-          'Comparado con <strong>' + PM.fecha(anioAnterior(t.fecha)) + '</strong>, el nivel de precios varió ' + vt + '. Compara el IPC actual con el del mismo mes del año anterior.') +
+        PM.pb(C.turquesa, T('Inflación mensual', 'Monthly inflation'), pct2(m.valor), T(
+          'En <strong>' + PM.fecha(m.fecha) + '</strong>, los precios variaron ' + PM.dt(C.turquesa, pct2(m.valor)) + ' respecto a <strong>' + PM.fecha(mesAnterior(m.fecha)) + '</strong>. Variación porcentual del nivel general de precios entre dos meses consecutivos, basada en el IPC.',
+          'In <strong>' + PM.fecha(m.fecha) + '</strong>, prices changed by ' + PM.dt(C.turquesa, pct2(m.valor)) + ' compared with <strong>' + PM.fecha(mesAnterior(m.fecha)) + '</strong>. Percentage change in the general price level between two consecutive months, based on the CPI.')) +
+        PM.pb(C.oro, T('Acumulada ' + anio, 'Year-to-date ' + anio), pct2(a.valor), T(
+          'Desde enero de <strong>' + anio + '</strong>, los precios acumulan ' + PM.dt(C.oro, pct2(a.valor)) + '. Efecto conjunto de las variaciones mensuales desde el inicio del año calendario.',
+          'Since January <strong>' + anio + '</strong>, prices have accumulated a change of ' + PM.dt(C.oro, pct2(a.valor)) + '. Combined effect of the monthly changes since the start of the calendar year.')) +
+        PM.pb(C.rojo, T('Interanual · 12 meses', 'Year-on-year · 12 months'), pct2(t.valor), T(
+          'Comparado con <strong>' + PM.fecha(anioAnterior(t.fecha)) + '</strong>, el nivel de precios varió ' + vt + '. Compara el IPC actual con el del mismo mes del año anterior.',
+          'Compared with <strong>' + PM.fecha(anioAnterior(t.fecha)) + '</strong>, the price level changed by ' + vt + '. It compares the current CPI with that of the same month of the previous year.')) +
         PM.ctx(txt);
     }
 
@@ -348,42 +379,59 @@
       // que pesa). Dice cómo se reparte la inflación, no qué la causa. Un grupo «aporta más de la mitad» si
       // suma el 50% o más de la interanual.
       var ap = aportes(g.fecha), MITAD = 0.5;
-      var comp = [{ k: 'nucleo', n: 'el núcleo', pl: false, v: nu.valor, c: C.turquesa }, { k: 'alimentos', n: 'los alimentos', pl: true, v: al.valor, c: C.oro },
-                  { k: 'energia', n: 'la energía', pl: false, v: en.valor, c: cE }];
-      var verbo = function (x) { var v = ap[x.k]; return x.n + ' ' + (v >= 0 ? (x.pl ? 'suman ' : 'suma ') : (x.pl ? 'restan ' : 'resta ')) + pp2(v); };
+      var comp = [{ k: 'nucleo', n: T('el núcleo', 'core'), pl: false, v: nu.valor, c: C.turquesa }, { k: 'alimentos', n: T('los alimentos', 'food'), pl: true, v: al.valor, c: C.oro },
+                  { k: 'energia', n: T('la energía', 'energy'), pl: false, v: en.valor, c: cE }];
+      // en inglés los tres grupos van en singular («food adds»): el plural sólo cuenta en castellano
+      var verbo = function (x) { var v = ap[x.k]; return T(x.n + ' ' + (v >= 0 ? (x.pl ? 'suman ' : 'suma ') : (x.pl ? 'restan ' : 'resta ')) + pp2(v), x.n + (v >= 0 ? ' adds ' : ' subtracts ') + pp2(v)); };
       var cap = function (t) { return t.charAt(0).toUpperCase() + t.slice(1); };
       var sube = comp.slice().sort(function (a, b) { return b.v - a.v; })[0], aporta = comp.slice().sort(function (a, b) { return ap[b.k] - ap[a.k]; })[0];
-      var txt = g.valor <= 0 ? '<strong>Los precios bajan en 12 meses.</strong> '
-        : ap[aporta.k] / g.valor >= MITAD ? '<strong>' + cap(aporta.n) + (aporta.pl ? ' aportan' : ' aporta') + ' más de la mitad.</strong> '
-        : '<strong>La inflación se reparte entre los tres grupos.</strong> ';
-      txt += 'De ' + PM.dt(C.rojo, pct2(g.valor)) + ', ' + verbo(comp[0]) + ', ' + verbo(comp[1]) + ' y ' + verbo(comp[2]) + '. ';
+      var txt = g.valor <= 0 ? T('<strong>Los precios bajan en 12 meses.</strong> ', '<strong>Prices are down over 12 months.</strong> ')
+        : ap[aporta.k] / g.valor >= MITAD ? T('<strong>' + cap(aporta.n) + (aporta.pl ? ' aportan' : ' aporta') + ' más de la mitad.</strong> ', '<strong>' + cap(aporta.n) + ' contributes more than half.</strong> ')
+        : T('<strong>La inflación se reparte entre los tres grupos.</strong> ', '<strong>Inflation is spread across the three groups.</strong> ');
+      txt += T('De ' + PM.dt(C.rojo, pct2(g.valor)) + ', ' + verbo(comp[0]) + ', ' + verbo(comp[1]) + ' y ' + verbo(comp[2]) + '. ',
+        'Of ' + PM.dt(C.rojo, pct2(g.valor)) + ', ' + verbo(comp[0]) + ', ' + verbo(comp[1]) + ' and ' + verbo(comp[2]) + '. ');
       txt += sube.k !== aporta.k
-        ? 'Lo que más sube es ' + sube.n + ' (' + PM.dt(sube.c, pct2(sube.v)) + '), que pesa ' + pond(pm[sube.k].ponderacion_total) + ' de la canasta.'
-        : cap(sube.n) + (sube.pl ? ' son' : ' es') + ' también el grupo que más sube (' + PM.dt(sube.c, pct2(sube.v)) + ').';
+        ? T('Lo que más sube es ' + sube.n + ' (' + PM.dt(sube.c, pct2(sube.v)) + '), que pesa ' + pond(pm[sube.k].ponderacion_total) + ' de la canasta.',
+          'What rises the most is ' + sube.n + ' (' + PM.dt(sube.c, pct2(sube.v)) + '), which accounts for ' + pond(pm[sube.k].ponderacion_total) + ' of the basket.')
+        : T(cap(sube.n) + (sube.pl ? ' son' : ' es') + ' también el grupo que más sube (' + PM.dt(sube.c, pct2(sube.v)) + ').',
+          cap(sube.n) + ' is also the group that rises the most (' + PM.dt(sube.c, pct2(sube.v)) + ').');
       document.getElementById('panel-fecha').textContent = PM.fecha(g.fecha);
       document.getElementById('panel').innerHTML =
-        PM.pb(C.rojo, 'IPC General', pct2(g.valor), '<strong>' + pm.general.productos + ' productos</strong> de la canasta.') +
-        PM.pb(C.turquesa, 'Inflación núcleo', pct2(nu.valor), '<strong>' + pm.nucleo.productos + ' productos</strong> (' + pond(pm.nucleo.ponderacion_total) + ' de la canasta). ' + corto(DEF.nucleo) + '.') +
-        PM.pb(C.oro, 'Alimentos', pct2(al.valor), '<strong>' + pm.alimentos.productos + ' productos</strong> (' + pond(pm.alimentos.ponderacion_total) + '). ' + corto(DEF.alimentos) + '.') +
-        PM.pb(cE, 'Energía', pct2(en.valor), '<strong>' + pm.energia.productos + ' productos</strong> (' + pond(pm.energia.ponderacion_total) + '). ' + corto(DEF.energia) + '.') +
+        PM.pb(C.rojo, T('IPC General', 'Headline CPI'), pct2(g.valor), T('<strong>' + pm.general.productos + ' productos</strong> de la canasta.', '<strong>' + pm.general.productos + ' products</strong> in the basket.')) +
+        PM.pb(C.turquesa, T('Inflación núcleo', 'Core inflation'), pct2(nu.valor), T('<strong>' + pm.nucleo.productos + ' productos</strong> (' + pond(pm.nucleo.ponderacion_total) + ' de la canasta). ' + corto(DEF.nucleo) + '.',
+          '<strong>' + pm.nucleo.productos + ' products</strong> (' + pond(pm.nucleo.ponderacion_total) + ' of the basket). ' + N(corto(DEF.nucleo)) + '.')) +
+        PM.pb(C.oro, T('Alimentos', 'Food'), pct2(al.valor), T('<strong>' + pm.alimentos.productos + ' productos</strong> (' + pond(pm.alimentos.ponderacion_total) + '). ' + corto(DEF.alimentos) + '.',
+          '<strong>' + pm.alimentos.productos + ' products</strong> (' + pond(pm.alimentos.ponderacion_total) + '). ' + N(corto(DEF.alimentos)) + '.')) +
+        PM.pb(cE, T('Energía', 'Energy'), pct2(en.valor), T('<strong>' + pm.energia.productos + ' productos</strong> (' + pond(pm.energia.ponderacion_total) + '). ' + corto(DEF.energia) + '.',
+          '<strong>' + pm.energia.productos + ' products</strong> (' + pond(pm.energia.ponderacion_total) + '). ' + N(corto(DEF.energia)) + '.')) +
         PM.ctx(txt);
     }
 
     var PREGUNTAS = [
-      ['¿Qué es la inflación y por qué importa?',
+      [T('¿Qué es la inflación y por qué importa?', 'What is inflation and why does it matter?'), T(
         '<p>La <strong>inflación</strong> es el aumento sostenido en el nivel general de precios de bienes y servicios en una economía. Cuando hay inflación, cada boliviano compra menos de lo que compraba antes: esto se llama <strong>pérdida de poder adquisitivo</strong>.</p>' +
-        '<p>La inflación afecta desproporcionadamente a los <strong>hogares de menores ingresos</strong>, que destinan mayor proporción de su gasto a alimentos y necesidades básicas. El reto actual de Bolivia es <strong>reducir la inflación en un contexto de desaceleración económica</strong>: la corrección del déficit fiscal —imprescindible para la estabilidad de largo plazo— profundizará la desaceleración en el corto plazo, pero es condición necesaria para retomar un <strong>crecimiento económico sostenible</strong>.</p>'],
-      ['¿Qué mide cada indicador?',
+        '<p>La inflación afecta desproporcionadamente a los <strong>hogares de menores ingresos</strong>, que destinan mayor proporción de su gasto a alimentos y necesidades básicas. El reto actual de Bolivia es <strong>reducir la inflación en un contexto de desaceleración económica</strong>: la corrección del déficit fiscal —imprescindible para la estabilidad de largo plazo— profundizará la desaceleración en el corto plazo, pero es condición necesaria para retomar un <strong>crecimiento económico sostenible</strong>.</p>',
+        '<p><strong>Inflation</strong> is the sustained increase in the general level of prices of goods and services in an economy. When there is inflation, each boliviano buys less than it used to: this is called <strong>loss of purchasing power</strong>.</p>' +
+        '<p>Inflation disproportionately affects <strong>lower-income households</strong>, which devote a larger share of their spending to food and basic needs. The current challenge for Bolivia is to <strong>reduce inflation in a context of economic slowdown</strong>: correcting the fiscal deficit—essential for long-term stability—will deepen the slowdown in the short term, but it is a necessary condition for returning to <strong>sustainable economic growth</strong>.</p>')],
+      [T('¿Qué mide cada indicador?', 'What does each indicator measure?'), T(
         '<p><strong>Inflación mensual:</strong> variación porcentual del nivel general de precios entre dos meses consecutivos, basada en el Índice de Precios al Consumidor (IPC). Captura los movimientos de corto plazo.</p>' +
         '<p><strong>Inflación acumulada:</strong> variación porcentual desde el inicio del año calendario hasta el mes de referencia. Refleja el efecto conjunto de las variaciones mensuales y permite medir el avance inflacionario en el año.</p>' +
-        '<p><strong>Inflación a 12 meses (interanual):</strong> compara el IPC actual con el del mismo mes del año anterior. Es el indicador más utilizado internacionalmente porque elimina efectos estacionales y muestra la tendencia real de los precios.</p>'],
-      ['¿Por qué suben los precios?',
+        '<p><strong>Inflación a 12 meses (interanual):</strong> compara el IPC actual con el del mismo mes del año anterior. Es el indicador más utilizado internacionalmente porque elimina efectos estacionales y muestra la tendencia real de los precios.</p>',
+        '<p><strong>Monthly inflation:</strong> percentage change in the general price level between two consecutive months, based on the Consumer Price Index (CPI). It captures short-term movements.</p>' +
+        '<p><strong>Year-to-date inflation:</strong> percentage change from the start of the calendar year to the reference month. It reflects the combined effect of the monthly changes and makes it possible to measure how far inflation has advanced during the year.</p>' +
+        '<p><strong>12-month (year-on-year) inflation:</strong> it compares the current CPI with that of the same month of the previous year. It is the most widely used indicator internationally because it removes seasonal effects and shows the real trend in prices.</p>')],
+      [T('¿Por qué suben los precios?', 'Why do prices rise?'), T(
         '<p>Más allá de los movimientos en <strong>precios relativos</strong> —que un producto suba o baje respecto a otro—, una inflación alta y generalizada revela un problema más profundo: <strong>el dinero está perdiendo valor</strong>.</p>' +
         '<p>Cuando el Banco Central emite más dinero del que la economía necesita (por ejemplo, para financiar déficits fiscales), hay más bolivianos persiguiendo la misma cantidad de bienes. El resultado inevitable es que los precios suben. Esto es lo que los economistas llaman el <strong>origen monetario de la inflación</strong>: demasiado dinero persiguiendo pocos bienes.</p>' +
-        '<p>En Bolivia, la caída de reservas internacionales ha debilitado el respaldo de la moneda, mientras que el crédito del BCB al sector público ha expandido la base monetaria. Estos <strong>desequilibrios macroeconómicos</strong> —no la escasez puntual de un producto— son la raíz de una inflación persistente. Por eso, para entender la inflación, es necesario mirar también los indicadores monetarios que la causan.</p>'],
-      ['La contribución no explica causas',
+        '<p>En Bolivia, la caída de reservas internacionales ha debilitado el respaldo de la moneda, mientras que el crédito del BCB al sector público ha expandido la base monetaria. Estos <strong>desequilibrios macroeconómicos</strong> —no la escasez puntual de un producto— son la raíz de una inflación persistente. Por eso, para entender la inflación, es necesario mirar también los indicadores monetarios que la causan.</p>',
+        '<p>Beyond movements in <strong>relative prices</strong>—one product rising or falling relative to another—high and widespread inflation reveals a deeper problem: <strong>money is losing value</strong>.</p>' +
+        '<p>When the Central Bank issues more money than the economy needs (for example, to finance fiscal deficits), there are more bolivianos chasing the same amount of goods. The inevitable result is that prices rise. This is what economists call the <strong>monetary origin of inflation</strong>: too much money chasing too few goods.</p>' +
+        '<p>In Bolivia, the fall in international reserves has weakened the backing of the currency, while BCB credit to the public sector has expanded the monetary base. These <strong>macroeconomic imbalances</strong>—not the one-off shortage of a product—are the root of persistent inflation. That is why, to understand inflation, it is also necessary to look at the monetary indicators that cause it.</p>')],
+      [T('La contribución no explica causas', 'Contribution does not explain causes'), T(
         '<p>En «Descomposición», el aporte de cada grupo (núcleo, alimentos, energía) reparte la inflación según lo que sube y lo que pesa en la canasta: es aritmética del índice y se cumple siempre. Dice dónde se registró el alza, no por qué ocurrió.</p>' +
-        '<p>La misma causa puede subir los tres grupos a la vez, y el alza de uno pasa a otros (el combustible, al pasaje y a la comida). Lo explica Brian Albrecht en <a href="https://www.economicforces.xyz/p/never-reason-from-an-accounting-identity-c4f" target="_blank" rel="noopener">«Never Reason from an Accounting Identity»</a> (Economic Forces, 2026).</p>']
+        '<p>La misma causa puede subir los tres grupos a la vez, y el alza de uno pasa a otros (el combustible, al pasaje y a la comida). Lo explica Brian Albrecht en <a href="https://www.economicforces.xyz/p/never-reason-from-an-accounting-identity-c4f" target="_blank" rel="noopener">«Never Reason from an Accounting Identity»</a> (Economic Forces, 2026).</p>',
+        '<p>In “Breakdown”, the contribution of each group (core, food, energy) apportions inflation according to how much it rises and how much it weighs in the basket: it is index arithmetic and it always holds. It says where the increase was recorded, not why it happened.</p>' +
+        '<p>The same cause can push up all three groups at once, and the increase in one passes through to others (fuel, to fares and to food). Brian Albrecht explains it in <a href="https://www.economicforces.xyz/p/never-reason-from-an-accounting-identity-c4f" target="_blank" rel="noopener">“Never Reason from an Accounting Identity”</a> (Economic Forces, 2026).</p>')]
     ];
   })();
   </script>

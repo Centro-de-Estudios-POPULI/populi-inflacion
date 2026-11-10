@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Desglose de la Inflación · Populi</title>
+  <title data-en="Inflation Breakdown · Populi">Desglose de la Inflación · Populi</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -14,12 +14,12 @@
 <body>
   <div class="wrap">
     <div class="sec-hd">
-      <h2 class="sec-title"><span class="accent-bar"></span>Desglose de la Inflación</h2>
+      <h2 class="sec-title" data-en='<span class="accent-bar"></span>Inflation Breakdown'><span class="accent-bar"></span>Desglose de la Inflación</h2>
       <p class="sec-sub" id="sub"></p>
     </div>
 
     <div class="hz-bar">
-      <div class="hz-item"><span class="hz-lbl">Rango</span><div class="hz-grp" id="b-rango"></div></div>
+      <div class="hz-item"><span class="hz-lbl" data-en="Range">Rango</span><div class="hz-grp" id="b-rango"></div></div>
     </div>
 
     <div class="kpi-grid" id="kpis"></div>
@@ -27,14 +27,14 @@
     <div class="main-grid">
       <div class="chart-card">
         <div class="chart-ctrl"><div class="tog-grp" id="pastillas"></div></div>
-        <div class="grafico" id="chart"><div class="loading"><div class="spinner"></div><span>Cargando datos de inflación…</span></div></div>
+        <div class="grafico" id="chart"><div class="loading"><div class="spinner"></div><span data-en="Loading inflation data…">Cargando datos de inflación…</span></div></div>
       </div>
       <div class="panel">
-        <div class="panel-hd"><span class="panel-hd-t">Lectura del indicador</span><span class="panel-hd-d" id="panel-fecha"></span></div>
+        <div class="panel-hd"><span class="panel-hd-t" data-en="Reading the indicator">Lectura del indicador</span><span class="panel-hd-d" id="panel-fecha"></span></div>
         <div class="panel-body" id="panel"></div>
         <div class="panel-ft">
           <a href="https://centro-de-estudios-populi.github.io/populi-inflacion/" target="_blank" rel="noopener" class="amp">
-            <span>Ampliar análisis</span>
+            <span data-en="Expand analysis">Ampliar análisis</span>
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           </a>
         </div>
@@ -53,8 +53,8 @@
 
   <script>
   (function () {
-    var C = PM.C;
-    var ENERGIA = { claro: C.petroleo, oscuro: C.menta };     // en oscuro el petróleo queda bajo 3:1 (validado)
+    var C = PM.C, T = PM.t;   // T('castellano', 'inglés'): con ?lang=en el gráfico sale en inglés
+    var ENERGIA ={ claro: C.petroleo, oscuro: C.menta };     // en oscuro el petróleo queda bajo 3:1 (validado)
     var SERIES = [];                                           // se arma con las ponderaciones de los datos
     var estado = { rango: 'todo', idx: null };
     var activas = new Set();
@@ -64,6 +64,17 @@
     var pond = function (x) { return PM.num(x, 2) + '%'; };
     // Definiciones: las del dato (meta.definiciones). El núcleo es el ESTÁNDAR: IPC sin alimentos ni energía.
     var DEF = { nucleo: 'IPC sin alimentos ni energía', alimentos: 'Alimentos y bebidas no alcohólicas', energia: 'Electricidad, gas y combustibles' };
+    // Las definiciones vienen de los datos (meta.definiciones): su pareja en inglés, entera (para las preguntas) y
+    // sin su paréntesis (para el panel), aplicada sólo donde se muestran. Un texto que no esté acá queda en castellano.
+    var EN = {
+      'IPC sin alimentos ni energía': 'CPI excluding food and energy',
+      'Alimentos y bebidas no alcohólicas': 'Food and non-alcoholic beverages',
+      'Electricidad, gas y combustibles': 'Electricity, gas and fuels',
+      'IPC sin alimentos ni energía (ponderado por producto con las ponderaciones del INE)': 'CPI excluding food and energy (weighted by product with the INE weights)',
+      'Alimentos y bebidas no alcohólicas (división 01 de la COICOP)': 'Food and non-alcoholic beverages (COICOP division 01)',
+      'Electricidad, gas y combustibles (COICOP 04.5 y 07.2.2: electricidad, gas por red, GLP, gasolina, GNV)': 'Electricity, gas and fuels (COICOP 04.5 and 07.2.2: electricity, piped gas, LPG, gasoline, CNG)'
+    };
+    var N = function (s) { return PM.en && EN[s] != null ? EN[s] : s; };
     var COMP = ['nucleo', 'alimentos', 'energia'], IDX = {};
     var anioAnterior = function (f) { return (+f.slice(0, 4) - 1) + f.slice(4); };
     // Aporte de cada grupo a la inflación a 12 meses, en pp: peso × (índice hoy − índice hace 12 meses) / Σ peso ×
@@ -90,18 +101,19 @@
       COMP.forEach(function (k) { IDX[k] = {}; DESC[k].forEach(function (p) { IDX[k][p.fecha] = p.valor; }); });
       YOY = { general: interanual(DESC.general), nucleo: interanual(DESC.nucleo), alimentos: interanual(DESC.alimentos), energia: interanual(DESC.energia) };
       SERIES = [
-        { k: 'general', nombre: 'General', color: C.rojo, forma: 'linea', ancho: 2.5, area: true },
+        { k: 'general', nombre: T('General', 'Headline'), color: C.rojo, forma: 'linea', ancho: 2.5, area: true },
         // protagonista «General» (2,5 px y único relleno); los componentes, 1,75 px
-        { k: 'nucleo', nombre: 'Núcleo (' + pond(pm.nucleo.ponderacion_total) + ')', color: C.turquesa, forma: 'linea', ancho: 1.75 },
-        { k: 'alimentos', nombre: 'Alimentos (' + pond(pm.alimentos.ponderacion_total) + ')', color: C.oro, forma: 'linea', ancho: 1.75 },
-        { k: 'energia', nombre: 'Energía (' + pond(pm.energia.ponderacion_total) + ')', color: ENERGIA, forma: 'punteada', ancho: 1.75 }
+        { k: 'nucleo', nombre: T('Núcleo (' + pond(pm.nucleo.ponderacion_total) + ')', 'Core (' + pond(pm.nucleo.ponderacion_total) + ')'), color: C.turquesa, forma: 'linea', ancho: 1.75 },
+        { k: 'alimentos', nombre: T('Alimentos (' + pond(pm.alimentos.ponderacion_total) + ')', 'Food (' + pond(pm.alimentos.ponderacion_total) + ')'), color: C.oro, forma: 'linea', ancho: 1.75 },
+        { k: 'energia', nombre: T('Energía (' + pond(pm.energia.ponderacion_total) + ')', 'Energy (' + pond(pm.energia.ponderacion_total) + ')'), color: ENERGIA, forma: 'punteada', ancho: 1.75 }
       ];
       SERIES.forEach(function (s) { activas.add(s.k); });
       K = YOY.general.map(function (p) { return p.fecha; });
       estado.idx = K.length - 1;
 
-      document.getElementById('sub').textContent = 'Variación interanual por componente · ' + pm.general.productos + ' productos · Base ' + META.base + ' = 100';
-      PM.botonera(document.getElementById('b-rango'), [['2a', '2 años'], ['5a', '5 años'], ['todo', 'Todo']], estado.rango, function (v) {
+      document.getElementById('sub').textContent = T('Variación interanual por componente · ' + pm.general.productos + ' productos · Base ' + META.base + ' = 100',
+        'Year-on-year change by component · ' + pm.general.productos + ' products · Base ' + META.base + ' = 100');
+      PM.botonera(document.getElementById('b-rango'), [['2a', T('2 años', '2 years')], ['5a', T('5 años', '5 years')], ['todo', T('Todo', 'All')]], estado.rango, function (v) {
         estado.rango = v; grafico.redibujar();
       });
       PM.pastillas(document.getElementById('pastillas'),
@@ -115,7 +127,9 @@
       panel(estado.idx);
       PM.alCambiarTema(function () { cifras(); panel(estado.idx); });
       PM.preguntas(document.getElementById('preguntas'), preguntas(pm));
-      document.getElementById('fuente').innerHTML = 'Fuente: <a href="' + META.url_nacional + '" target="_blank" rel="noopener">INE Bolivia</a> · Elaboración: <a href="https://populi.org.bo" target="_blank" rel="noopener">Centro de Estudios POPULI</a> · Datos al: ' + PM.fecha(K[K.length - 1]);
+      document.getElementById('fuente').innerHTML = T(
+        'Fuente: <a href="' + META.url_nacional + '" target="_blank" rel="noopener">INE Bolivia</a> · Elaboración: <a href="https://populi.org.bo" target="_blank" rel="noopener">Centro de Estudios POPULI</a> · Datos al: ',
+        'Source: <a href="' + META.url_nacional + '" target="_blank" rel="noopener">INE Bolivia</a> · Analysis: <a href="https://populi.org.bo" target="_blank" rel="noopener">Centro de Estudios POPULI</a> · Data as of: ') + PM.fecha(K[K.length - 1]);
     }).catch(function (e) { console.error(e); PM.error(document.getElementById('chart')); });
 
     function cifras() {
@@ -123,7 +137,7 @@
       document.getElementById('kpis').innerHTML = SERIES.map(function (s, j) {
         var v = YOY[s.k][n - 1].valor, d = v - YOY[s.k][n - 2].valor;
         return PM.kpi({
-          color: s.color, rotulo: j ? s.nombre : 'General', valor: pct2(v),
+          color: s.color, rotulo: j ? s.nombre : T('General', 'Headline'), valor: pct2(v),
           delta: PM.flecha(d, 0.01) + ' ' + PM.num(Math.abs(d), 2) + ' pp',
           tono: Math.abs(d) < 0.01 ? 'neutro' : d > 0 ? 'malo' : 'bueno',             // en inflación, subir es malo
           serie: PM.ultimos(YOY[s.k].map(function (p) { return p.valor; }), 24)          // minilínea: últimos 24 meses
@@ -175,42 +189,58 @@
       // que pesa). Dice cómo se reparte la inflación, no qué la causa. Un grupo «aporta más de la mitad» si
       // suma el 50% o más de la interanual.
       var ap = aportes(g.fecha), MITAD = 0.5;
-      var comp = [{ k: 'nucleo', n: 'el núcleo', pl: false, v: nu.valor, c: C.turquesa }, { k: 'alimentos', n: 'los alimentos', pl: true, v: al.valor, c: C.oro },
-                  { k: 'energia', n: 'la energía', pl: false, v: en.valor, c: ENERGIA }];
-      var verbo = function (x) { var v = ap[x.k]; return x.n + ' ' + (v >= 0 ? (x.pl ? 'suman ' : 'suma ') : (x.pl ? 'restan ' : 'resta ')) + pp2(v); };
+      var comp = [{ k: 'nucleo', n: T('el núcleo', 'core'), pl: false, v: nu.valor, c: C.turquesa }, { k: 'alimentos', n: T('los alimentos', 'food'), pl: true, v: al.valor, c: C.oro },
+                  { k: 'energia', n: T('la energía', 'energy'), pl: false, v: en.valor, c: ENERGIA }];
+      // en inglés los tres grupos van en singular («food adds»): el plural sólo cuenta en castellano
+      var verbo = function (x) { var v = ap[x.k]; return T(x.n + ' ' + (v >= 0 ? (x.pl ? 'suman ' : 'suma ') : (x.pl ? 'restan ' : 'resta ')) + pp2(v), x.n + (v >= 0 ? ' adds ' : ' subtracts ') + pp2(v)); };
       var cap = function (t) { return t.charAt(0).toUpperCase() + t.slice(1); };
       var sube = comp.slice().sort(function (a, b) { return b.v - a.v; })[0], aporta = comp.slice().sort(function (a, b) { return ap[b.k] - ap[a.k]; })[0];
-      var txt = g.valor <= 0 ? '<strong>Los precios bajan en 12 meses.</strong> '
-        : ap[aporta.k] / g.valor >= MITAD ? '<strong>' + cap(aporta.n) + (aporta.pl ? ' aportan' : ' aporta') + ' más de la mitad.</strong> '
-        : '<strong>La inflación se reparte entre los tres grupos.</strong> ';
-      txt += 'De ' + PM.dt(C.rojo, pct2(g.valor)) + ', ' + verbo(comp[0]) + ', ' + verbo(comp[1]) + ' y ' + verbo(comp[2]) + '. ';
+      var txt = g.valor <= 0 ? T('<strong>Los precios bajan en 12 meses.</strong> ', '<strong>Prices are down over 12 months.</strong> ')
+        : ap[aporta.k] / g.valor >= MITAD ? T('<strong>' + cap(aporta.n) + (aporta.pl ? ' aportan' : ' aporta') + ' más de la mitad.</strong> ', '<strong>' + cap(aporta.n) + ' contributes more than half.</strong> ')
+        : T('<strong>La inflación se reparte entre los tres grupos.</strong> ', '<strong>Inflation is spread across the three groups.</strong> ');
+      txt += T('De ' + PM.dt(C.rojo, pct2(g.valor)) + ', ' + verbo(comp[0]) + ', ' + verbo(comp[1]) + ' y ' + verbo(comp[2]) + '. ',
+        'Of ' + PM.dt(C.rojo, pct2(g.valor)) + ', ' + verbo(comp[0]) + ', ' + verbo(comp[1]) + ' and ' + verbo(comp[2]) + '. ');
       txt += sube.k !== aporta.k
-        ? 'Lo que más sube es ' + sube.n + ' (' + PM.dt(sube.c, pct2(sube.v)) + '), que pesa ' + pond(pm[sube.k].ponderacion_total) + ' de la canasta.'
-        : cap(sube.n) + (sube.pl ? ' son' : ' es') + ' también el grupo que más sube (' + PM.dt(sube.c, pct2(sube.v)) + ').';
+        ? T('Lo que más sube es ' + sube.n + ' (' + PM.dt(sube.c, pct2(sube.v)) + '), que pesa ' + pond(pm[sube.k].ponderacion_total) + ' de la canasta.',
+          'What rises the most is ' + sube.n + ' (' + PM.dt(sube.c, pct2(sube.v)) + '), which accounts for ' + pond(pm[sube.k].ponderacion_total) + ' of the basket.')
+        : T(cap(sube.n) + (sube.pl ? ' son' : ' es') + ' también el grupo que más sube (' + PM.dt(sube.c, pct2(sube.v)) + ').',
+          cap(sube.n) + ' is also the group that rises the most (' + PM.dt(sube.c, pct2(sube.v)) + ').');
       document.getElementById('panel-fecha').textContent = PM.fecha(g.fecha);
       document.getElementById('panel').innerHTML =
-        PM.pb(C.rojo, 'IPC General', pct2(g.valor), '<strong>' + pm.general.productos + ' productos</strong> de la canasta.') +
-        PM.pb(C.turquesa, 'Inflación núcleo', pct2(nu.valor), '<strong>' + pm.nucleo.productos + ' productos</strong> (' + pond(pm.nucleo.ponderacion_total) + ' de la canasta). ' + corto(DEF.nucleo) + '.') +
-        PM.pb(C.oro, 'Alimentos', pct2(al.valor), '<strong>' + pm.alimentos.productos + ' productos</strong> (' + pond(pm.alimentos.ponderacion_total) + '). ' + corto(DEF.alimentos) + '.') +
-        PM.pb(ENERGIA, 'Energía', pct2(en.valor), '<strong>' + pm.energia.productos + ' productos</strong> (' + pond(pm.energia.ponderacion_total) + '). ' + corto(DEF.energia) + '.') +
+        PM.pb(C.rojo, T('IPC General', 'Headline CPI'), pct2(g.valor), T('<strong>' + pm.general.productos + ' productos</strong> de la canasta.', '<strong>' + pm.general.productos + ' products</strong> in the basket.')) +
+        PM.pb(C.turquesa, T('Inflación núcleo', 'Core inflation'), pct2(nu.valor), T('<strong>' + pm.nucleo.productos + ' productos</strong> (' + pond(pm.nucleo.ponderacion_total) + ' de la canasta). ' + corto(DEF.nucleo) + '.',
+          '<strong>' + pm.nucleo.productos + ' products</strong> (' + pond(pm.nucleo.ponderacion_total) + ' of the basket). ' + N(corto(DEF.nucleo)) + '.')) +
+        PM.pb(C.oro, T('Alimentos', 'Food'), pct2(al.valor), T('<strong>' + pm.alimentos.productos + ' productos</strong> (' + pond(pm.alimentos.ponderacion_total) + '). ' + corto(DEF.alimentos) + '.',
+          '<strong>' + pm.alimentos.productos + ' products</strong> (' + pond(pm.alimentos.ponderacion_total) + '). ' + N(corto(DEF.alimentos)) + '.')) +
+        PM.pb(ENERGIA, T('Energía', 'Energy'), pct2(en.valor), T('<strong>' + pm.energia.productos + ' productos</strong> (' + pond(pm.energia.ponderacion_total) + '). ' + corto(DEF.energia) + '.',
+          '<strong>' + pm.energia.productos + ' products</strong> (' + pond(pm.energia.ponderacion_total) + '). ' + N(corto(DEF.energia)) + '.')) +
         PM.ctx(txt);
     }
 
     function preguntas(pm) {
       return [
-        ['¿Qué es la inflación núcleo?',
+        [T('¿Qué es la inflación núcleo?', 'What is core inflation?'), T(
           '<p>La <strong>inflación núcleo</strong> mide el ' + DEF.nucleo + ': ' + pm.nucleo.productos + ' productos que pesan ' + pond(pm.nucleo.ponderacion_total) + ' de la canasta. La energía que se quita es ' + DEF.energia.charAt(0).toLowerCase() + DEF.energia.slice(1) + '.</p>' +
           '<p>Se quitan esos dos grupos porque sus precios saltan más de un mes a otro: lo que queda muestra si el alza alcanza al resto de la canasta. Que el núcleo suba dice que el alza se extiende; no dice por qué.</p>' +
-          '<p>Es la definición estándar. Antes POPULI excluía del núcleo todo el transporte, pasajes incluidos; ahora sólo sale la energía.</p>'],
-        ['¿Por qué importa la descomposición?',
+          '<p>Es la definición estándar. Antes POPULI excluía del núcleo todo el transporte, pasajes incluidos; ahora sólo sale la energía.</p>',
+          '<p><strong>Core inflation</strong> measures the ' + N(DEF.nucleo) + ': ' + pm.nucleo.productos + ' products that account for ' + pond(pm.nucleo.ponderacion_total) + ' of the basket. The energy that is removed is ' + N(DEF.energia).charAt(0).toLowerCase() + N(DEF.energia).slice(1) + '.</p>' +
+          '<p>Those two groups are removed because their prices jump more from one month to the next: what remains shows whether the increase reaches the rest of the basket. A rising core says that the increase is spreading; it does not say why.</p>' +
+          '<p>This is the standard definition. POPULI previously excluded all transport from the core, fares included; now only energy is left out.</p>')],
+        [T('¿Por qué importa la descomposición?', 'Why does the breakdown matter?'), T(
           '<p>Separar la inflación en <strong>núcleo</strong> (' + pond(pm.nucleo.ponderacion_total) + '), <strong>alimentos</strong> (' + pond(pm.alimentos.ponderacion_total) + ') y <strong>energía</strong> (' + pond(pm.energia.ponderacion_total) + ') muestra qué grupo sube más y cuántos puntos aporta cada uno a la inflación general, según lo que sube y lo que pesa en la canasta.</p>' +
-          '<p>Un grupo chico que sube mucho puede aportar menos que uno grande que sube poco: la energía pesa ' + pond(pm.energia.ponderacion_total) + ' de la canasta.</p>'],
-        ['La contribución no explica causas',
+          '<p>Un grupo chico que sube mucho puede aportar menos que uno grande que sube poco: la energía pesa ' + pond(pm.energia.ponderacion_total) + ' de la canasta.</p>',
+          '<p>Splitting inflation into <strong>core</strong> (' + pond(pm.nucleo.ponderacion_total) + '), <strong>food</strong> (' + pond(pm.alimentos.ponderacion_total) + ') and <strong>energy</strong> (' + pond(pm.energia.ponderacion_total) + ') shows which group rises the most and how many points each one contributes to headline inflation, according to how much it rises and how much it weighs in the basket.</p>' +
+          '<p>A small group that rises a lot can contribute less than a large one that rises a little: energy accounts for ' + pond(pm.energia.ponderacion_total) + ' of the basket.</p>')],
+        [T('La contribución no explica causas', 'Contribution does not explain causes'), T(
           '<p>El aporte de cada grupo reparte la inflación según lo que sube y lo que pesa: es aritmética del índice y se cumple siempre. Dice dónde se registró el alza, no por qué ocurrió.</p>' +
-          '<p>La misma causa —un dólar más caro, más dinero en circulación— puede subir los tres grupos a la vez, y el alza de uno pasa a otros (el combustible, al pasaje y a la comida). Lo explica Brian Albrecht en <a href="https://www.economicforces.xyz/p/never-reason-from-an-accounting-identity-c4f" target="_blank" rel="noopener">«Never Reason from an Accounting Identity»</a> (Economic Forces, 2026).</p>'],
-        ['Alimentos: el impacto desigual',
+          '<p>La misma causa —un dólar más caro, más dinero en circulación— puede subir los tres grupos a la vez, y el alza de uno pasa a otros (el combustible, al pasaje y a la comida). Lo explica Brian Albrecht en <a href="https://www.economicforces.xyz/p/never-reason-from-an-accounting-identity-c4f" target="_blank" rel="noopener">«Never Reason from an Accounting Identity»</a> (Economic Forces, 2026).</p>',
+          '<p>The contribution of each group apportions inflation according to how much it rises and how much it weighs: it is index arithmetic and it always holds. It says where the increase was recorded, not why it happened.</p>' +
+          '<p>The same cause—a more expensive dollar, more money in circulation—can push up all three groups at once, and the increase in one passes through to others (fuel, to fares and to food). Brian Albrecht explains it in <a href="https://www.economicforces.xyz/p/never-reason-from-an-accounting-identity-c4f" target="_blank" rel="noopener">“Never Reason from an Accounting Identity”</a> (Economic Forces, 2026).</p>')],
+        [T('Alimentos: el impacto desigual', 'Food: the unequal impact'), T(
           '<p>Los hogares de menores ingresos destinan a la comida una parte mayor de su gasto que los de ingresos altos: cuando los alimentos suben más que el resto, la inflación les pesa más de lo que dice el promedio.</p>' +
-          '<p>El IPC mide la canasta de un hogar promedio, donde los alimentos pesan ' + pond(pm.alimentos.ponderacion_total) + '.</p>']
+          '<p>El IPC mide la canasta de un hogar promedio, donde los alimentos pesan ' + pond(pm.alimentos.ponderacion_total) + '.</p>',
+          '<p>Lower-income households devote a larger share of their spending to food than high-income ones: when food rises more than the rest, inflation weighs on them more than the average says.</p>' +
+          '<p>The CPI measures the basket of an average household, where food accounts for ' + pond(pm.alimentos.ponderacion_total) + '.</p>')]
       ];
     }
   })();
